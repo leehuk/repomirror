@@ -72,7 +72,6 @@ use Carp;
 use Cwd qw(abs_path);
 use File::Basename qw(dirname);
 use File::Path qw(make_path);
-use HTTP::Tiny;
 
 sub new
 {
@@ -143,6 +142,8 @@ package RepoMirror::URIObject;
 
 use strict;
 use Carp;
+use Digest::SHA qw(sha1_hex sha256_hex);
+use HTTP::Tiny;
 
 sub new
 {
@@ -159,6 +160,13 @@ sub new
 	return $self;
 }
 
+sub checksum
+{
+	my $self = shift;
+	my $cksumtype = shift;
+	return (defined($self->{'checksum'}) && defined($self->{'checksum'}->{$cksumtype}) ? $self->{'checksum'}->{$cksumtype} : undef);
+}
+
 sub path
 {
 	my $self = shift;
@@ -168,19 +176,78 @@ sub path
 sub retrieve
 {
 	my $self = shift;
+	my $options = shift || {};
 
 	if($self->{'type'} eq 'file')
 	{
+		my $path = $self->{'path'};
+
+		return unless(-f $path);
+
+		# get the size before any decompression
+		my @stat = stat($path);
+		$self->{'size'} = $stat[7];
+
+		if($options->{'decompress'})
+		{
+			$path = "gunzip -c $path |" if($path =~ /\.gz$/);
+			$path = "bunzip2 -c $path |" if($path =~ /\.bz2$/);
+		}
+
+		my $contents;
+
+		open(my $file, $path) or throw Error::Simple("Unable to open $path");
+		{ local $/; $contents = <$file>; }
+		close($file);
+
+		# calculate checksums
+		$self->{'checksum'}->{'sha1'} = sha1_hex($contents);
+		$self->{'checksum'}->{'sha256'} = sha256_hex($contents);
+
+		return $contents;
 	}
 	elsif($self->{'type'} eq 'url')
 	{
+		# simple cache
+		return $self->{'content'} if(defined($self->{'content'}));
+
 		my $response = HTTP::Tiny->new()->get($self->{'path'});
 
 		confess "Error: UNable to retrieve $self->{'path'}: $response->{'status'}: $response->{'reason'}"
 			unless($response->{'success'} && $response->{'status'} == 200);
 
-		return $response->{'content'};
+		$self->{'content'} = $response->{'content'};
+		
+		# calculate sizes and checksums
+		$self->{'size'} = length($self->{'content'});
+		$self->{'checksum'}->{'sha1'} = sha1_hex($self->{'content'});
+		$self->{'checksum'}->{'sha256'} = sha256_hex($self->{'content'});
+
+		return $self->{'content'};
 	}
+}
+
+sub size
+{
+	my $self = shift;
+	return (defined($self->{'size'}) ? $self->{'size'} : undef);
+}
+
+sub xcompare
+{
+	my $self = shift;
+	my $entry = shift;
+
+	return 0 unless(defined($self->{'size'}) && defined($self->{'checksum'}));
+	return 0 unless($self->{'size'} == $entry->{'size'});
+
+	foreach my $checksum (@{$entry->{'checksum'}})
+	{
+		return 0 unless($self->checksum($checksum->{'type'}) eq $checksum->{'value'});
+	}
+
+	return 1;
+
 }
 
 #######################
@@ -345,7 +412,6 @@ use v5.10;
 
 use Cwd qw(abs_path);
 use Data::Dumper;
-use Digest::SHA qw(sha1_hex sha256_hex);
 use Error qw(:try);
 use Getopt::Std qw(getopts);
 
@@ -365,95 +431,6 @@ sub mirror_usage
 	print "           but without any variables like \$releasever etc.\n";
 }
 
-sub mirror_get_path
-{
-	my $path = shift;
-	my $decompress = shift || 0;
-	my $contents;
-
-	# update for decompression if required
-	$path = "gunzip -c $path |"
-		if($decompress && $path =~ /\.gz$/);
-	$path = "bunzip2 -c $path |"
-		if($decompress && $path =~ /\.bz2$/);
-
-	open(my $file, $path) or throw Error::Simple("Unable to open $path");
-	{ local $/; $contents = <$file>; }
-	close($file);
-
-	return $contents;
-}
-
-sub mirror_compare
-{
-	my $path = shift;
-	my $entry = shift;
-	my $size_only = shift || 0;
-
-	return 0 unless(mirror_compare_size($path, $entry->{'size'}));
-	return 1 if($size_only);
-
-	foreach my $checksum (@{$entry->{'checksum'}})
-	{
-		return 0 unless(mirror_compare_hash($path, $checksum->{'type'}, $checksum->{'value'}));
-	}
-
-	return 1;
-}
-
-sub mirror_compare_size
-{
-	my $path = shift;
-	my $size = shift;
-
-	return 1 if(fileinfo_size($path) == $size);
-	return 0;
-}
-
-sub mirror_compare_hash
-{
-	my $path = shift;
-	my $type = shift;
-	my $hash = shift;
-
-	my $filehash;
-	if($type eq 'sha1')
-	{
-		$filehash = fileinfo_sha1($path);
-	}
-	elsif($type eq 'sha256')
-	{
-		$filehash = fileinfo_sha256($path);
-	}
-	else
-	{
-		throw Error::Simple("Invalid hash method: $type for '$path'");
-	}
-
-	return 1 if($hash eq $filehash);
-	return 0;
-}
-
-sub fileinfo_size
-{
-	my $path = shift;
-
-	my @stat = stat($path);
-	return $stat[7];
-}
-
-sub fileinfo_sha1
-{
-	my $path = shift;
-	return sha1_hex(mirror_get_path($path));
-}
-
-sub fileinfo_sha256
-{
-	my $path = shift;
-	return sha256_hex(mirror_get_path($path));
-}
-
 my $options = {};
 getopts('d:fhsu:v', $options);
 
@@ -467,26 +444,21 @@ $option_force = 1 if(defined($options->{'f'}));
 $option_silent = 1 if(defined($options->{'s'}));
 
 # initialise the base path and urls
-my $uri_path = RepoMirror::URI->new({ 'path' => $options->{'d'}, 'type' => 'file' });
+my $uri_file = RepoMirror::URI->new({ 'path' => $options->{'d'}, 'type' => 'file' });
 my $uri_url = RepoMirror::URI->new({ 'path' => $options->{'u'}, 'type' => 'url' });
 
 my $pb = RepoMirror::ProgressBar->new({ 'message' => 'Downloading repomd.xml', 'count' => 1, 'silent' => $option_silent });
-my $repomd_uri = $uri_path->generate('repodata/repomd.xml');
-my $repomd = $uri_url->generate('repodata/repomd.xml')->retrieve();
-my $repomd_list = RepoMirror::XMLParser->new({ 'mdtype' => 'repomd', 'filename' => 'repomd.xml', 'document' => $repomd })->parse();
+my $repomd_file = $uri_file->generate('repodata/repomd.xml');
+my $repomd_url = $uri_url->generate('repodata/repomd.xml');
+my $repomd_list = RepoMirror::XMLParser->new({ 'mdtype' => 'repomd', 'filename' => 'repomd.xml', 'document' => $repomd_url->retrieve() })->parse();
 $pb->update();
 
 # if our repomd.xml matches, the repo is fully synced
-if(-f $repomd_uri->path() && !$option_force)
+if(-f $repomd_file->path() && !$option_force)
 {
-	exit(0) if(mirror_compare($repomd_uri->path(), {
-			'location'		=> 'repodata/repomd.xml',
-			'size'			=> length($repomd),
-			'checksum'		=> [{
-				'type'			=> 'sha256',
-				'value'			=> sha256_hex($repomd),
-			}],
-		}));
+	# retrieve the on-disk file to get its sizing/checksums
+	$repomd_file->retrieve();
+	exit(0) if($repomd_url->size() == $repomd_file->size() && $repomd_url->checksum('sha256') eq $repomd_file->checksum('sha256'));
 }
 
 # before we continue, double check we have a 'primary' metadata object
@@ -508,27 +480,32 @@ foreach my $rd_entry (@{$repomd_list})
 {
 	$pb->message("Downloading $rd_entry->{'location'}");
 
-	my $path = $uri_path->generate($rd_entry->{'location'})->path();
+	my $repodata_file = $uri_file->generate($rd_entry->{'location'});
+	my $repodata_url = $uri_url->generate($rd_entry->{'location'});
 
-	unless(-f $path && mirror_compare($path, $rd_entry))
+	# determine if our on disk contents match whats listed in repomd.xml
+	if(-f $repodata_file->path())
 	{
-		my $repodata = $uri_url->generate($rd_entry->{'location'})->retrieve();
-		open(my $file, '>', $path) or throw Error::Simple("Unable to open file for writing: $path");
-		print $file $repodata;
-		close($file);
+		$repodata_file->retrieve();
 
-		unless(mirror_compare($path, $rd_entry))
+		unless($repodata_file->xcompare($rd_entry))
 		{
-			unlink($path);
-			throw Error::Simple("Size/hash mismatch downloading: $path");
+			$repodata_url->retrieve();
+
+			throw Error::Simple("Size/hash mismatch vs metadata downloading: " . $repodata_url->path())
+				unless($repodata_url->xcompare($rd_entry));
+
+			open(my $file, '>', $repodata_file->path()) or throw Error::Simple("Unable to open file for writing: " . $repodata_file->path());
+			print $file $repodata_url->retrieve();
+			close($file);
 		}
 	}
 
 	$pb->update("Downloaded $rd_entry->{'location'}");
 }
 
-my $primarymd_uri = $uri_path->generate($primarymd_location);
-my $primarymd = mirror_get_path($primarymd_uri->path(), 1);
+# we should have pushed the primary metadata out to disk when we downloaded the repodata
+my $primarymd = $uri_file->generate($primarymd_location)->retrieve({ 'decompress' => 1 });
 my $primarymd_list = RepoMirror::XMLParser->new({ 'mdtype' => 'primary', 'filename' => $primarymd_location, 'document' => $primarymd })->parse();
 
 $pb = RepoMirror::ProgressBar->new({ 'message' => 'Downloading RPMs', 'count' => scalar(@{$primarymd_list}), 'silent' => $option_silent });
@@ -536,20 +513,23 @@ foreach my $rpm_entry (@{$primarymd_list})
 {
 	$pb->message("Downloading $rpm_entry->{'location'}");
 
-	my $rpm_uri = $uri_path->generate($rpm_entry->{'location'});
+	my $rpm_file = $uri_file->generate($rpm_entry->{'location'});
+	my $rpm_url = $uri_url->generate($rpm_entry->{'location'});
 
-	unless(-f $rpm_uri->path() && mirror_compare($rpm_uri->path(), $rpm_entry, 1))
+	if(-f $rpm_file->path())
 	{
-		my $rpm = $uri_url->generate($rpm_entry->{'location'})->retrieve();
-		open(my $file, '>', $rpm_uri->path()) or throw Error::Simple("Unable to open file for writing: " . $rpm_uri->path());
-		print $file $rpm;
-		close($file);
+		$rpm_file->retrieve();
 
-		# validate what we downloaded matches the xml
-		unless(mirror_compare($rpm_uri->path(), $rpm_entry))
+		unless($rpm_file->xcompare($rpm_entry))
 		{
-			unlink($rpm_uri->path());
-			throw Error::Simple("Size/hash mismatch downloading: " . $rpm_uri->path());
+			$rpm_url->retrieve();
+
+			throw Error::Simple("Size/hash mismatch vs metadata downloading: " . $rpm_url->path())
+				unless($rpm_url->xcompare($rpm_entry));
+
+			open(my $file, '>', $rpm_file->path()) or throw Error::Simple("Unable to open file for writing: " . $rpm_file->path());
+			print $file $rpm_url->retrieve();
+			close($file);
 		}
 	}
 
@@ -558,7 +538,7 @@ foreach my $rpm_entry (@{$primarymd_list})
 
 # write the new repomd.xml at the end, now we've downloaded all the metadata and rpms it references
 $pb = RepoMirror::ProgressBar->new({ 'message' => 'Writing repomd.xml', 'count' => 1, 'silent' => $option_silent });
-open(my $file, '>', $repomd_uri->path()) or throw Error::Simple("Unable to open file for writing: " . $repomd_uri->path());
-print $file $repomd;
+open(my $file, '>', $repomd_file->path()) or throw Error::Simple("Unable to open file for writing: " . $repomd_file->path());
+print $file $repomd_url->retrieve();
 close($file);
 $pb->update();
