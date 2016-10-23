@@ -196,7 +196,7 @@ sub retrieve
 
 		my $contents;
 
-		open(my $file, $path) or throw Error::Simple("Unable to open $path");
+		open(my $file, $path) or confess "Unable to open: $path";
 		{ local $/; $contents = <$file>; }
 		close($file);
 
@@ -213,7 +213,7 @@ sub retrieve
 
 		my $response = HTTP::Tiny->new()->get($self->{'path'});
 
-		confess "Error: UNable to retrieve $self->{'path'}: $response->{'status'}: $response->{'reason'}"
+		confess "Error: Unable to retrieve $self->{'path'}: $response->{'status'}: $response->{'reason'}"
 			unless($response->{'success'} && $response->{'status'} == 200);
 
 		$self->{'content'} = $response->{'content'};
@@ -410,13 +410,9 @@ package main;
 use strict;
 use v5.10;
 
-use Cwd qw(abs_path);
+use Carp;
 use Data::Dumper;
-use Error qw(:try);
 use Getopt::Std qw(getopts);
-
-my $option_force = 0;
-my $option_silent = 0;
 
 sub mirror_usage
 {
@@ -430,6 +426,9 @@ sub mirror_usage
 	print "           This should be the same path used in a yum.repos.d file,\n";
 	print "           but without any variables like \$releasever etc.\n";
 }
+
+my $option_force = 0;
+my $option_silent = 0;
 
 my $options = {};
 getopts('d:fhsu:v', $options);
