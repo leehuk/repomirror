@@ -389,15 +389,12 @@ make_path($options->{'d'});
 $mirror_base_path = abs_path($options->{'d'}) . '/';
 $mirror_base_url = $options->{'u'};
 
+my $pb = RepoMirror::ProgressBar->new({ 'message' => 'Downloading repomd.xml', 'count' => 1, 'silent' => $option_silent });
 my $repomd_path = mirror_gen_path('repodata/repomd.xml');
 my $repomd_url = mirror_gen_url('repodata/repomd.xml');
-
-my $pb = RepoMirror::ProgressBar->new({ 'message' => 'Downloading repomd.xml', 'count' => 1, 'silent' => $option_silent });
 my $repomd = mirror_get_url($repomd_url);
+my $repomd_list = RepoMirror::XMLParser->new({ 'mdtype' => 'repomd', 'filename' => 'repomd.xml', 'document' => $repomd })->parse();
 $pb->update();
-
-my $repomd_parser = RepoMirror::XMLParser->new({ 'mdtype' => 'repomd', 'filename' => 'repomd.xml', 'document' => $repomd });
-my $repomd_list = $repomd_parser->parse();
 
 # if our repomd.xml matches, the repo is fully synced
 if(-f $repomd_path && !$option_force)
@@ -453,12 +450,7 @@ foreach my $rd_entry (@{$repomd_list})
 
 my $primarymd_path = mirror_gen_path($primarymd_location);
 my $primarymd = mirror_get_path($primarymd_path, 1);
-
-my $primarymd_parser = RepoMirror::XMLParser->new({ 'mdtype' => 'primary', 'filename' => $primarymd_location, 'document' => $primarymd });
-my $primarymd_list = $primarymd_parser->parse();
-# we're done with the metadata and its fairly expensive to hold in memory, so wipe it out
-$primarymd_parser = undef;
-$primarymd = undef;
+my $primarymd_list = RepoMirror::XMLParser->new({ 'mdtype' => 'primary', 'filename' => $primarymd_location, 'document' => $primarymd })->parse();
 
 $pb = RepoMirror::ProgressBar->new({ 'message' => 'Downloading RPMs', 'count' => scalar(@{$primarymd_list}), 'silent' => $option_silent });
 foreach my $rpm_entry (@{$primarymd_list})
