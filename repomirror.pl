@@ -7,9 +7,7 @@
 #
 #	Released under the MIT License
 
-
-
-package RepoMirrorProgressbar;
+package RepoMirror::ProgressBar;
 
 use strict;
 use Carp;
@@ -19,7 +17,7 @@ sub new
 	my $name = shift;
 	my $options = shift || {};
 
-	my $self = {};
+	my $self = bless({}, $name);
 
 	confess("Missing 'message' option")
 		unless(defined($options->{'message'}));
@@ -33,7 +31,6 @@ sub new
 
 	$|=1;
 
-	bless($self, $name);
 	$self->message();
 	return $self;
 }
@@ -414,7 +411,7 @@ $mirror_base_url = $options->{'u'};
 my $repomd_path = mirror_gen_path('repodata/repomd.xml');
 my $repomd_url = mirror_gen_url('repodata/repomd.xml');
 
-my $pb = RepoMirrorProgressbar->new({ 'message' => 'Downloading repomd.xml', 'count' => 1, 'silent' => $option_silent });
+my $pb = RepoMirror::ProgressBar->new({ 'message' => 'Downloading repomd.xml', 'count' => 1, 'silent' => $option_silent });
 my $repomd = mirror_get_url($repomd_url);
 $pb->update();
 
@@ -447,7 +444,7 @@ foreach my $rd_entry (@{$rd_list})
 throw Error::Simple("Unable to locate 'primary' metadata within repomd.xml")
 	unless(defined($primarymd_location));
 
-$pb = RepoMirrorProgressbar->new({ 'message' => 'Downloading repodata', 'count' => scalar(@{$rd_list}), 'silent' => $option_silent });
+$pb = RepoMirror::ProgressBar->new({ 'message' => 'Downloading repodata', 'count' => scalar(@{$rd_list}), 'silent' => $option_silent });
 foreach my $rd_entry (@{$rd_list})
 {
 	$pb->message("Downloading $rd_entry->{'location'}");
@@ -479,7 +476,7 @@ my $rpm_list = mirror_parse_primarymd($primarymd);
 # we're done with the metadata and its fairly expensive to hold in memory, so wipe it out
 $primarymd = undef;
 
-$pb = RepoMirrorProgressbar->new({ 'message' => 'Downloading RPMs', 'count' => scalar(@{$rpm_list}), 'silent' => $option_silent });
+$pb = RepoMirror::ProgressBar->new({ 'message' => 'Downloading RPMs', 'count' => scalar(@{$rpm_list}), 'silent' => $option_silent });
 foreach my $rpm_entry (@{$rpm_list})
 {
 	$pb->message("Downloading $rpm_entry->{'location'}");
@@ -506,7 +503,7 @@ foreach my $rpm_entry (@{$rpm_list})
 }
 
 # write the new repomd.xml at the end, now we've downloaded all the metadata and rpms it references
-$pb = RepoMirrorProgressbar->new({ 'message' => 'Writing repomd.xml', 'count' => 1, 'silent' => $option_silent });
+$pb = RepoMirror::ProgressBar->new({ 'message' => 'Writing repomd.xml', 'count' => 1, 'silent' => $option_silent });
 open(my $file, '>', $repomd_path) or throw Error::Simple("Unable to open file for writing: $repomd_path");
 print $file $repomd;
 close($file);
