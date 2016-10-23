@@ -1,4 +1,13 @@
 #!/usr/bin/perl -w
+#
+# repomirror.pl
+# 	Tool for mirroring RPM based repositories in a reasonably intelligent manner.
+#
+# 	Copyright (C) 2016 Lee H <lee -at- leeh -dot- uk>
+#
+#	Released under the MIT License
+
+
 
 package RepoMirrorProgressbar;
 
