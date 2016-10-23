@@ -7,6 +7,23 @@
 #
 # Released under the MIT License
 
+####################
+# RepoMirror::Helper
+# 	Contains various helper functions
+package RepoMirror::Helper;
+
+use strict;
+use Carp;
+
+sub file_write
+{
+	my ($path, $contents) = (shift, shift);
+
+	open(my $file, '>', $path) or confess "Unable to open file for writing: $path";
+	print $file $contents;
+	close($file);
+}
+
 #########################
 # RepoMirror::ProgressBar
 # 	Implements a simplistic progress bar for operations
@@ -500,9 +517,7 @@ foreach my $rd_entry (@{$repomd_list})
 		throw Error::Simple("Size/hash mismatch vs metadata downloading: " . $repodata_url->path())
 			unless($repodata_url->xcompare($rd_entry));
 
-		open(my $file, '>', $repodata_file->path()) or throw Error::Simple("Unable to open file for writing: " . $repodata_file->path());
-		print $file $repodata_url->retrieve();
-		close($file);
+		RepoMirror::Helper->file_write($repodata_file->path(), $repodata_url->retrieve());
 	}
 
 	$pb->update("Downloaded $rd_entry->{'location'}");
@@ -530,9 +545,7 @@ foreach my $rpm_entry (@{$primarymd_list})
 		throw Error::Simple("Size/hash mismatch vs metadata downloading: " . $rpm_url->path())
 			unless($rpm_url->xcompare($rpm_entry));
 
-		open(my $file, '>', $rpm_file->path()) or throw Error::Simple("Unable to open file for writing: " . $rpm_file->path());
-		print $file $rpm_url->retrieve();
-		close($file);
+		RepoMirror::Helper->file_write($rpm_file->path(), $rpm_url->retrieve());
 	}
 
 	$pb->update("Downloaded $rpm_entry->{'location'}");
@@ -540,7 +553,5 @@ foreach my $rpm_entry (@{$primarymd_list})
 
 # write the new repomd.xml at the end, now we've downloaded all the metadata and rpms it references
 $pb = RepoMirror::ProgressBar->new({ 'message' => 'Writing repomd.xml', 'count' => 1, 'silent' => $option_silent });
-open(my $file, '>', $repomd_file->path()) or throw Error::Simple("Unable to open file for writing: " . $repomd_file->path());
-print $file $repomd_url->retrieve();
-close($file);
+RepoMirror::Helper->file_write($repomd_file->path(), $repomd_url->retrieve());
 $pb->update();
