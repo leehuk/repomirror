@@ -1,11 +1,11 @@
 #!/usr/bin/perl -w
 #
 # repomirror.pl
-# 	Tool for mirroring RPM based repositories in a reasonably intelligent manner.
+# 	Tool for mirroring RPM based repositories via HTTP(s) in a reasonably intelligent manner.
 #
-# 	Copyright (C) 2016 Lee H <lee -at- leeh -dot- uk>
+# Copyright (C) 2016 Lee H <lee -at- leeh -dot- uk>
 #
-#	Released under the MIT License
+# Released under the MIT License
 
 #########################
 # RepoMirror::ProgressBar
@@ -233,6 +233,13 @@ sub size
 	return (defined($self->{'size'}) ? $self->{'size'} : undef);
 }
 
+# xcompare()
+# 	Compares a URIObjects size/checksums against a specially structured hash
+# 	Note: The retrieve() method needs to have been called on the object first to load sizes and checksums.
+#
+# inputs	- hash comparison entry in form: { 'size' => 2048, 'checksum' => [{ 'type' => 'sha1', 'value' => 'deadbeef..' }] }
+# outputs	-
+# returns	- 1 if size and checksums match, otherwise 0
 sub xcompare
 {
 	my $self = shift;
@@ -446,6 +453,7 @@ $option_silent = 1 if(defined($options->{'s'}));
 my $uri_file = RepoMirror::URI->new({ 'path' => $options->{'d'}, 'type' => 'file' });
 my $uri_url = RepoMirror::URI->new({ 'path' => $options->{'u'}, 'type' => 'url' });
 
+# lets go grab our repomd.xml first
 my $pb = RepoMirror::ProgressBar->new({ 'message' => 'Downloading repomd.xml', 'count' => 1, 'silent' => $option_silent });
 my $repomd_file = $uri_file->generate('repodata/repomd.xml');
 my $repomd_url = $uri_url->generate('repodata/repomd.xml');
@@ -460,7 +468,7 @@ if(-f $repomd_file->path() && !$option_force)
 	exit(0) if($repomd_url->size() == $repomd_file->size() && $repomd_url->checksum('sha256') eq $repomd_file->checksum('sha256'));
 }
 
-# before we continue, double check we have a 'primary' metadata object
+# before we continue, double check we have a 'primary' metadata object as that contains the list of rpms
 my $primarymd_location;
 foreach my $rd_entry (@{$repomd_list})
 {
@@ -474,6 +482,7 @@ foreach my $rd_entry (@{$repomd_list})
 throw Error::Simple("Unable to locate 'primary' metadata within repomd.xml")
 	unless(defined($primarymd_location));
 
+# download all of the repodata files listed in repomd.xml
 $pb = RepoMirror::ProgressBar->new({ 'message' => 'Downloading repodata', 'count' => scalar(@{$repomd_list}), 'silent' => $option_silent });
 foreach my $rd_entry (@{$repomd_list})
 {
@@ -482,22 +491,18 @@ foreach my $rd_entry (@{$repomd_list})
 	my $repodata_file = $uri_file->generate($rd_entry->{'location'});
 	my $repodata_url = $uri_url->generate($rd_entry->{'location'});
 
+	$repodata_file->retrieve();
 	# determine if our on disk contents match whats listed in repomd.xml
-	if(-f $repodata_file->path())
+	unless(-f $repodata_file->path() && $repodata_file->xcompare($rd_entry))
 	{
-		$repodata_file->retrieve();
+		$repodata_url->retrieve();
 
-		unless($repodata_file->xcompare($rd_entry))
-		{
-			$repodata_url->retrieve();
+		throw Error::Simple("Size/hash mismatch vs metadata downloading: " . $repodata_url->path())
+			unless($repodata_url->xcompare($rd_entry));
 
-			throw Error::Simple("Size/hash mismatch vs metadata downloading: " . $repodata_url->path())
-				unless($repodata_url->xcompare($rd_entry));
-
-			open(my $file, '>', $repodata_file->path()) or throw Error::Simple("Unable to open file for writing: " . $repodata_file->path());
-			print $file $repodata_url->retrieve();
-			close($file);
-		}
+		open(my $file, '>', $repodata_file->path()) or throw Error::Simple("Unable to open file for writing: " . $repodata_file->path());
+		print $file $repodata_url->retrieve();
+		close($file);
 	}
 
 	$pb->update("Downloaded $rd_entry->{'location'}");
@@ -507,6 +512,7 @@ foreach my $rd_entry (@{$repomd_list})
 my $primarymd = $uri_file->generate($primarymd_location)->retrieve({ 'decompress' => 1 });
 my $primarymd_list = RepoMirror::XMLParser->new({ 'mdtype' => 'primary', 'filename' => $primarymd_location, 'document' => $primarymd })->parse();
 
+# download all of the rpm files listed in the primary.xml variant
 $pb = RepoMirror::ProgressBar->new({ 'message' => 'Downloading RPMs', 'count' => scalar(@{$primarymd_list}), 'silent' => $option_silent });
 foreach my $rpm_entry (@{$primarymd_list})
 {
@@ -515,21 +521,18 @@ foreach my $rpm_entry (@{$primarymd_list})
 	my $rpm_file = $uri_file->generate($rpm_entry->{'location'});
 	my $rpm_url = $uri_url->generate($rpm_entry->{'location'});
 
-	if(-f $rpm_file->path())
+	$rpm_file->retrieve();
+	# determine if our on-disk contents match whats in primary.xml and re-download if not
+	unless(-f $rpm_file->path() && $rpm_file->xcompare($rpm_entry))
 	{
-		$rpm_file->retrieve();
+		$rpm_url->retrieve();
 
-		unless($rpm_file->xcompare($rpm_entry))
-		{
-			$rpm_url->retrieve();
+		throw Error::Simple("Size/hash mismatch vs metadata downloading: " . $rpm_url->path())
+			unless($rpm_url->xcompare($rpm_entry));
 
-			throw Error::Simple("Size/hash mismatch vs metadata downloading: " . $rpm_url->path())
-				unless($rpm_url->xcompare($rpm_entry));
-
-			open(my $file, '>', $rpm_file->path()) or throw Error::Simple("Unable to open file for writing: " . $rpm_file->path());
-			print $file $rpm_url->retrieve();
-			close($file);
-		}
+		open(my $file, '>', $rpm_file->path()) or throw Error::Simple("Unable to open file for writing: " . $rpm_file->path());
+		print $file $rpm_url->retrieve();
+		close($file);
 	}
 
 	$pb->update("Downloaded $rpm_entry->{'location'}");
