@@ -71,12 +71,14 @@ use XML::Tiny qw(parsefile);
 my $mirror_base_path;
 my $mirror_base_url;
 
+my $option_force = 0;
 my $option_silent = 0;
 
 sub mirror_usage
 {
-	print "Usage: $0 [-hrs] -d <directory> -u <url>\n";
+	print "Usage: $0 [-fhrs] -d <directory> -u <url>\n";
 	print "     * -d: Directory to mirror to (required).\n";
+	print "       -f: Force repodata/rpm sync when up to date.\n";
 	print "       -h: Show this help.\n";
 	print "       -r: Remove local files that are no longer on the mirror.\n";
 	print "       -s: Be silent other than for errors.\n";
@@ -376,7 +378,7 @@ sub mirror_parse_primarymd
 }
 
 my $options = {};
-getopts('d:hsu:v', $options);
+getopts('d:fhsu:v', $options);
 
 if(defined($options->{'h'}) || !defined($options->{'u'}) || !defined($options->{'d'}))
 {
@@ -390,6 +392,7 @@ if(abs_path($options->{'d'}) eq '/')
 	exit(1);
 }
 
+$option_force = 1 if(defined($options->{'f'}));
 $option_silent = 1 if(defined($options->{'s'}));
 
 # ensure our main folder exists
@@ -409,7 +412,7 @@ $pb->update();
 my $rd_list = mirror_parse_repomd($repomd);
 
 # if our repomd.xml matches, the repo is fully synced
-if(-f $repomd_path && 0)
+if(-f $repomd_path && !$option_force)
 {
 	exit(0) if(mirror_compare($repomd_path, {
 			'location'		=> 'repodata/repomd.xml',
