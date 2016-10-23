@@ -61,6 +61,79 @@ sub update
 	$self->message($message);
 }
 
+#################
+# RepoMirror::URI
+# 	Handles generating URIs based on a standard prefix
+#
+package RepoMirror::URI;
+
+use strict;
+use Carp;
+use Cwd qw(abs_path);
+use File::Basename qw(dirname);
+use File::Path qw(make_path);
+
+sub new
+{
+	my $name = shift;
+	my $options = shift || {};
+
+	confess "Missing option: path:$options->{'path'} type:$options->{'type'}"
+		unless(defined($options->{'path'}) && defined($options->{'type'}));
+	confess "Invalid 'type' option: $options->{'type'}"
+		unless($options->{'type'} eq 'file' || $options->{'type'} eq 'url');
+	confess "Safety hat: Refusing to use root filesystem as a sync location"
+		if($options->{'type'} eq 'file' && abs_path($options->{'path'}) eq '/');
+
+	my $self = bless({}, $name);
+	$self->{'path'} = $options->{'path'};
+	$self->{'type'} = $options->{'type'};
+
+	# rework the path to be absolute if its on disk and ensure it exists
+	if($self->{'type'} eq 'file')
+	{
+		$self->{'path'} = abs_path($self->{'path'}) . '/';
+		make_path($self->{'path'});
+	}
+
+	return $self;
+}
+
+sub generate
+{
+	my $self = shift;
+	my $path = shift;
+
+	if($self->{'type'} eq 'file')
+	{
+		# Safety Dance Time.  We want to take some basic precautions as we're effectively
+		# allowing an arbitrary XML file to dictate a folder structure.  Ideally, we'd first
+		# validate the generated path is within our base folder, but abs_path() will return
+		# nothing if one of the folders in that generated path doesnt actually exist.
+		#
+		# So, validate first for special characters, basic traversal checks, then create 
+		# the required parent folders so we can validate with abs_path() its in our base.
+		confess "Safety hat: Path contains strange characters: $path"
+			unless($path =~ /^[a-zA-Z0-9\.\-\_\/]+$/);
+		confess "Safety hat: Path traverses upwards: $path"
+			if($path =~ /\.\.\//);
+
+		my $genpath = $self->{'path'} . $path;
+		my $dirname = dirname($genpath);
+		make_path($dirname);
+		my $abspath = abs_path($genpath);
+
+		confess "Safety hat: Generated path is outside the base folder $self->{'path'}: $genpath -> $abspath"
+			if(substr($abspath, 0, length($self->{'path'})) ne $self->{'path'});
+
+		return $abspath;
+	}
+	elsif($self->{'type'} eq 'url')
+	{
+		return $self->{'path'} . $path;
+	}
+}
+
 #######################
 # RepoMirror::XMLParser
 #   Parses repomd and primary repodata XML files
@@ -225,13 +298,8 @@ use Cwd qw(abs_path);
 use Data::Dumper;
 use Digest::SHA qw(sha1_hex sha256_hex);
 use Error qw(:try);
-use File::Basename qw(dirname);
-use File::Path qw(make_path);
 use Getopt::Std qw(getopts);
 use HTTP::Tiny;
-
-my $mirror_base_path;
-my $mirror_base_url;
 
 my $option_force = 0;
 my $option_silent = 0;
@@ -277,32 +345,6 @@ sub mirror_get_path
 	close($file);
 
 	return $contents;
-}
-
-sub mirror_gen_path
-{
-	my $path = shift;
-
-	throw Error::Simple("Error: Path contains strange characters: $path")
-		unless($path =~ /^[a-zA-Z0-9\.\-\_\/]+$/);
-	throw Error::Simple("Error: Path traverses upwards: $path")
-		if($path =~ /\.\.\//);
-
-	my $dirname = dirname($mirror_base_path . $path);
-	make_path($dirname);
-
-	my $genpath = abs_path($mirror_base_path . $path);
-	throw Error::Simple("Error: Generated path is unsafe: $mirror_base_path$path -> $genpath")
-		if(substr(abs_path($genpath), 0, length($mirror_base_path)) ne $mirror_base_path);
-
-	return $genpath;
-}
-
-sub mirror_gen_url
-{
-	my $url = shift;
-
-	return "$mirror_base_url$url";
 }
 
 sub mirror_compare
@@ -384,25 +426,16 @@ if(defined($options->{'h'}) || !defined($options->{'u'}) || !defined($options->{
 	exit(1);
 }
 
-if(abs_path($options->{'d'}) eq '/')
-{
-	print "Error: You *really* dont want to sync to the root filesystem.\n";
-	exit(1);
-}
-
 $option_force = 1 if(defined($options->{'f'}));
 $option_silent = 1 if(defined($options->{'s'}));
 
-# ensure our main folder exists
-make_path($options->{'d'});
-
 # initialise the base path and urls
-$mirror_base_path = abs_path($options->{'d'}) . '/';
-$mirror_base_url = $options->{'u'};
+my $uri_path = RepoMirror::URI->new({ 'path' => $options->{'d'}, 'type' => 'file' });
+my $uri_url = RepoMirror::URI->new({ 'path' => $options->{'u'}, 'type' => 'url' });
 
 my $pb = RepoMirror::ProgressBar->new({ 'message' => 'Downloading repomd.xml', 'count' => 1, 'silent' => $option_silent });
-my $repomd_path = mirror_gen_path('repodata/repomd.xml');
-my $repomd_url = mirror_gen_url('repodata/repomd.xml');
+my $repomd_path = $uri_path->generate('repodata/repomd.xml');
+my $repomd_url = $uri_url->generate('repodata/repomd.xml');
 my $repomd = mirror_get_url($repomd_url);
 my $repomd_list = RepoMirror::XMLParser->new({ 'mdtype' => 'repomd', 'filename' => 'repomd.xml', 'document' => $repomd })->parse();
 $pb->update();
@@ -439,8 +472,8 @@ foreach my $rd_entry (@{$repomd_list})
 {
 	$pb->message("Downloading $rd_entry->{'location'}");
 
-	my $path = mirror_gen_path($rd_entry->{'location'});
-	my $url = mirror_gen_url($rd_entry->{'location'});
+	my $path = $uri_path->generate($rd_entry->{'location'});
+	my $url = $uri_url->generate($rd_entry->{'location'});
 
 	unless(-f $path && mirror_compare($path, $rd_entry))
 	{
@@ -459,7 +492,7 @@ foreach my $rd_entry (@{$repomd_list})
 	$pb->update("Downloaded $rd_entry->{'location'}");
 }
 
-my $primarymd_path = mirror_gen_path($primarymd_location);
+my $primarymd_path = $uri_path->generate($primarymd_location);
 my $primarymd = mirror_get_path($primarymd_path, 1);
 my $primarymd_list = RepoMirror::XMLParser->new({ 'mdtype' => 'primary', 'filename' => $primarymd_location, 'document' => $primarymd })->parse();
 
@@ -468,8 +501,8 @@ foreach my $rpm_entry (@{$primarymd_list})
 {
 	$pb->message("Downloading $rpm_entry->{'location'}");
 
-	my $path = mirror_gen_path($rpm_entry->{'location'});
-	my $url = mirror_gen_url($rpm_entry->{'location'});
+	my $path = $uri_path->generate($rpm_entry->{'location'});
+	my $url = $uri_url->generate($rpm_entry->{'location'});
 
 	unless(-f $path && mirror_compare($path, $rpm_entry, 1))
 	{
