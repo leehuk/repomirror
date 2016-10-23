@@ -17,7 +17,7 @@ use Carp;
 
 sub file_write
 {
-	my ($path, $contents) = (shift, shift);
+	my ($name, $path, $contents) = (shift, shift, shift);
 
 	open(my $file, '>', $path) or confess "Unable to open file for writing: $path";
 	print $file $contents;
@@ -267,7 +267,7 @@ sub xcompare
 
 	foreach my $checksum (@{$entry->{'checksum'}})
 	{
-		return 0 unless($self->checksum($checksum->{'type'}) eq $checksum->{'value'});
+		return 0 unless($self->{'checksum'}->{$checksum->{'type'}} eq $checksum->{'value'});
 	}
 
 	return 1;
