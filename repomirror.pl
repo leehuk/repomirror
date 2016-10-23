@@ -63,7 +63,7 @@ sub update
 
 #################
 # RepoMirror::URI
-# 	Handles generating URIs based on a standard prefix
+# 	Parent class for generating RepoMirror::URIObject elements
 #
 package RepoMirror::URI;
 
@@ -72,6 +72,7 @@ use Carp;
 use Cwd qw(abs_path);
 use File::Basename qw(dirname);
 use File::Path qw(make_path);
+use HTTP::Tiny;
 
 sub new
 {
@@ -126,11 +127,59 @@ sub generate
 		confess "Safety hat: Generated path is outside the base folder $self->{'path'}: $genpath -> $abspath"
 			if(substr($abspath, 0, length($self->{'path'})) ne $self->{'path'});
 
-		return $abspath;
+		return RepoMirror::URIObject->new({ 'path' => $abspath, 'type' => $self->{'type'} });
 	}
 	elsif($self->{'type'} eq 'url')
 	{
-		return $self->{'path'} . $path;
+		return RepoMirror::URIObject->new({ 'path' => $self->{'path'} . $path, 'type' => $self->{'type'} });
+	}
+}
+
+#################
+# RepoMirror::URIObject
+# 	Handles downloading and retrieving sub-URIs of a RepoMirror::URI object
+#
+package RepoMirror::URIObject;
+
+use strict;
+use Carp;
+
+sub new
+{
+	my $name = shift;
+	my $options = shift || {};
+
+	confess "Missing option: path:$options->{'path'} type:$options->{'type'}"
+		unless(defined($options->{'path'}) && defined($options->{'type'}));
+
+	my $self = bless({}, $name);
+	$self->{'path'} = $options->{'path'};
+	$self->{'type'} = $options->{'type'};
+
+	return $self;
+}
+
+sub path
+{
+	my $self = shift;
+	return $self->{'path'};
+}
+
+sub retrieve
+{
+	my $self = shift;
+
+	if($self->{'type'} eq 'file')
+	{
+	}
+	elsif($self->{'type'} eq 'url')
+	{
+		my $response = HTTP::Tiny->new()->get($self->{'path'});
+
+		confess "Error: UNable to retrieve $self->{'path'}: $response->{'status'}: $response->{'reason'}"
+			unless($response->{'success'} && $response->{'status'} == 200);
+
+		return $response->{'content'};
 	}
 }
 
@@ -299,7 +348,6 @@ use Data::Dumper;
 use Digest::SHA qw(sha1_hex sha256_hex);
 use Error qw(:try);
 use Getopt::Std qw(getopts);
-use HTTP::Tiny;
 
 my $option_force = 0;
 my $option_silent = 0;
@@ -315,17 +363,6 @@ sub mirror_usage
 	print "     * -u: Sets the base URL for the repository (required).\n";
 	print "           This should be the same path used in a yum.repos.d file,\n";
 	print "           but without any variables like \$releasever etc.\n";
-}
-
-sub mirror_get_url
-{
-	my $url = shift;
-
-	my $response = HTTP::Tiny->new->get($url);
-	throw Error::Simple("Unable to retrieve $url: $response->{'status'}: $response->{'reason'}")
-		unless($response->{'success'} && $response->{'status'} == 200);
-
-	return $response->{'content'};
 }
 
 sub mirror_get_path
@@ -434,16 +471,15 @@ my $uri_path = RepoMirror::URI->new({ 'path' => $options->{'d'}, 'type' => 'file
 my $uri_url = RepoMirror::URI->new({ 'path' => $options->{'u'}, 'type' => 'url' });
 
 my $pb = RepoMirror::ProgressBar->new({ 'message' => 'Downloading repomd.xml', 'count' => 1, 'silent' => $option_silent });
-my $repomd_path = $uri_path->generate('repodata/repomd.xml');
-my $repomd_url = $uri_url->generate('repodata/repomd.xml');
-my $repomd = mirror_get_url($repomd_url);
+my $repomd_uri = $uri_path->generate('repodata/repomd.xml');
+my $repomd = $uri_url->generate('repodata/repomd.xml')->retrieve();
 my $repomd_list = RepoMirror::XMLParser->new({ 'mdtype' => 'repomd', 'filename' => 'repomd.xml', 'document' => $repomd })->parse();
 $pb->update();
 
 # if our repomd.xml matches, the repo is fully synced
-if(-f $repomd_path && !$option_force)
+if(-f $repomd_uri->path() && !$option_force)
 {
-	exit(0) if(mirror_compare($repomd_path, {
+	exit(0) if(mirror_compare($repomd_uri->path(), {
 			'location'		=> 'repodata/repomd.xml',
 			'size'			=> length($repomd),
 			'checksum'		=> [{
@@ -472,12 +508,11 @@ foreach my $rd_entry (@{$repomd_list})
 {
 	$pb->message("Downloading $rd_entry->{'location'}");
 
-	my $path = $uri_path->generate($rd_entry->{'location'});
-	my $url = $uri_url->generate($rd_entry->{'location'});
+	my $path = $uri_path->generate($rd_entry->{'location'})->path();
 
 	unless(-f $path && mirror_compare($path, $rd_entry))
 	{
-		my $repodata = mirror_get_url($url);
+		my $repodata = $uri_url->generate($rd_entry->{'location'})->retrieve();
 		open(my $file, '>', $path) or throw Error::Simple("Unable to open file for writing: $path");
 		print $file $repodata;
 		close($file);
@@ -485,15 +520,15 @@ foreach my $rd_entry (@{$repomd_list})
 		unless(mirror_compare($path, $rd_entry))
 		{
 			unlink($path);
-			throw Error::Simple("Size/hash mismatch downloading: $url");
+			throw Error::Simple("Size/hash mismatch downloading: $path");
 		}
 	}
 
 	$pb->update("Downloaded $rd_entry->{'location'}");
 }
 
-my $primarymd_path = $uri_path->generate($primarymd_location);
-my $primarymd = mirror_get_path($primarymd_path, 1);
+my $primarymd_uri = $uri_path->generate($primarymd_location);
+my $primarymd = mirror_get_path($primarymd_uri->path(), 1);
 my $primarymd_list = RepoMirror::XMLParser->new({ 'mdtype' => 'primary', 'filename' => $primarymd_location, 'document' => $primarymd })->parse();
 
 $pb = RepoMirror::ProgressBar->new({ 'message' => 'Downloading RPMs', 'count' => scalar(@{$primarymd_list}), 'silent' => $option_silent });
@@ -501,21 +536,20 @@ foreach my $rpm_entry (@{$primarymd_list})
 {
 	$pb->message("Downloading $rpm_entry->{'location'}");
 
-	my $path = $uri_path->generate($rpm_entry->{'location'});
-	my $url = $uri_url->generate($rpm_entry->{'location'});
+	my $rpm_uri = $uri_path->generate($rpm_entry->{'location'});
 
-	unless(-f $path && mirror_compare($path, $rpm_entry, 1))
+	unless(-f $rpm_uri->path() && mirror_compare($rpm_uri->path(), $rpm_entry, 1))
 	{
-		my $rpm = mirror_get_url($url);
-		open(my $file, '>', $path) or throw Error::Simple("Unable to open file for writing: $path");
+		my $rpm = $uri_url->generate($rpm_entry->{'location'})->retrieve();
+		open(my $file, '>', $rpm_uri->path()) or throw Error::Simple("Unable to open file for writing: " . $rpm_uri->path());
 		print $file $rpm;
 		close($file);
 
 		# validate what we downloaded matches the xml
-		unless(mirror_compare($path, $rpm_entry))
+		unless(mirror_compare($rpm_uri->path(), $rpm_entry))
 		{
-			unlink($path);
-			throw Error::Simple("Size/hash mismatch downloading: $url");
+			unlink($rpm_uri->path());
+			throw Error::Simple("Size/hash mismatch downloading: " . $rpm_uri->path());
 		}
 	}
 
@@ -524,7 +558,7 @@ foreach my $rpm_entry (@{$primarymd_list})
 
 # write the new repomd.xml at the end, now we've downloaded all the metadata and rpms it references
 $pb = RepoMirror::ProgressBar->new({ 'message' => 'Writing repomd.xml', 'count' => 1, 'silent' => $option_silent });
-open(my $file, '>', $repomd_path) or throw Error::Simple("Unable to open file for writing: $repomd_path");
+open(my $file, '>', $repomd_uri->path()) or throw Error::Simple("Unable to open file for writing: " . $repomd_uri->path());
 print $file $repomd;
 close($file);
 $pb->update();
