@@ -128,7 +128,7 @@ sub message
 sub update
 {
 	my $self = shift;
-	my $message = shift;
+	my $message = shift || $self->{'message'};
 
 	$self->{'current'}++;
 	$self->message($message);
