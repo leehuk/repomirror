@@ -88,7 +88,6 @@ package RepoMirror::ListRemover;
 
 use strict;
 use Carp;
-use Data::Dumper;
 
 sub new
 {
@@ -404,7 +403,6 @@ package RepoMirror::XMLParser;
 
 use strict;
 use Carp;
-use Data::Dumper;
 use Error qw(:try);
 use IO::String;
 use XML::Tiny qw(parsefile);
@@ -557,7 +555,6 @@ use strict;
 use v5.10;
 
 use Carp;
-use Data::Dumper;
 use Getopt::Std qw(getopts);
 
 sub mirror_usage
