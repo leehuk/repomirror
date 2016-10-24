@@ -61,9 +61,13 @@ Preferably dont run it as root, particularly if you've told it to remove orphane
 [19:20 repo@repo:~]$ ./repomirror.pl 
 Usage: ./repomirror.pl [-fhrs] -d <directory> -u <url>
      * -d: Directory to mirror to (required).
+	       When -r(emove) is specified, *everything* within this folder
+           thats not listed in the repo will be *deleted*.
        -f: Force repodata/rpm sync when up to date.
        -h: Show this help.
        -r: Remove local files that are no longer on the mirror.
+	       Its *strongly* recommended you run a download first without
+		   this option to ensure you have your pathing correct.
        -s: Be silent other than for errors.
      * -u: Sets the base URL for the repository (required).
            This should be the same path used in a yum.repos.d file,
