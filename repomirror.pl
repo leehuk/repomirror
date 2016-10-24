@@ -24,6 +24,62 @@ sub file_write
 	close($file);
 }
 
+############################
+# RepoMirror::ListDownloader
+# 	Class for downloading and syncing contents from a built list
+#
+package RepoMirror::ListDownloader;
+
+use strict;
+use Carp;
+
+sub new
+{
+	my $name = shift;
+	my $options = shift || {};
+
+	my $self = bless({}, $name);
+
+	confess "Missing 'list' option" unless(defined($options->{'list'}));
+	confess "Missing 'pb' option" unless(defined($options->{'pb'}));
+	confess "Missing 'uri_file' option" unless(defined($options->{'uri_file'}));
+	confess "Missing 'uri_url' option" unless(defined($options->{'uri_url'}));
+
+	$self->{'list'} = $options->{'list'};
+	$self->{'pb'} = $options->{'pb'};
+	$self->{'uri_file'} = $options->{'uri_file'};
+	$self->{'uri_url'} = $options->{'uri_url'};
+
+	return $self;
+}
+
+sub sync
+{
+	my $self = shift;
+
+	foreach my $entry (@{$self->{'list'}})
+	{
+		$self->{'pb'}->message("Downloading $entry->{'location'}");
+
+		my $file = $self->{'uri_file'}->generate($entry->{'location'});
+		my $url = $self->{'uri_url'}->generate($entry->{'location'});
+
+		$file->retrieve();
+		# determine if our on disk contents match whats listed in repomd.xml
+		unless(-f $file->path() && $file->xcompare($entry))
+		{
+			$url->retrieve();
+
+			throw Error::Simple("Size/hash mismatch vs metadata downloading: " . $url->path())
+				unless($url->xcompare($entry));
+
+			RepoMirror::Helper->file_write($file->path(), $url->retrieve());
+		}
+
+		$self->{'pb'}->update("Downloaded $entry->{'location'}");
+	}
+}
+
 #########################
 # RepoMirror::ProgressBar
 # 	Implements a simplistic progress bar for operations
@@ -470,7 +526,7 @@ $option_silent = 1 if(defined($options->{'s'}));
 my $uri_file = RepoMirror::URI->new({ 'path' => $options->{'d'}, 'type' => 'file' });
 my $uri_url = RepoMirror::URI->new({ 'path' => $options->{'u'}, 'type' => 'url' });
 
-# lets go grab our repomd.xml first
+# lets go grab our repomd.xml first and parse it into a tree
 my $pb = RepoMirror::ProgressBar->new({ 'message' => 'Downloading repomd.xml', 'count' => 1, 'silent' => $option_silent });
 my $repomd_file = $uri_file->generate('repodata/repomd.xml');
 my $repomd_url = $uri_url->generate('repodata/repomd.xml');
@@ -501,27 +557,7 @@ throw Error::Simple("Unable to locate 'primary' metadata within repomd.xml")
 
 # download all of the repodata files listed in repomd.xml
 $pb = RepoMirror::ProgressBar->new({ 'message' => 'Downloading repodata', 'count' => scalar(@{$repomd_list}), 'silent' => $option_silent });
-foreach my $rd_entry (@{$repomd_list})
-{
-	$pb->message("Downloading $rd_entry->{'location'}");
-
-	my $repodata_file = $uri_file->generate($rd_entry->{'location'});
-	my $repodata_url = $uri_url->generate($rd_entry->{'location'});
-
-	$repodata_file->retrieve();
-	# determine if our on disk contents match whats listed in repomd.xml
-	unless(-f $repodata_file->path() && $repodata_file->xcompare($rd_entry))
-	{
-		$repodata_url->retrieve();
-
-		throw Error::Simple("Size/hash mismatch vs metadata downloading: " . $repodata_url->path())
-			unless($repodata_url->xcompare($rd_entry));
-
-		RepoMirror::Helper->file_write($repodata_file->path(), $repodata_url->retrieve());
-	}
-
-	$pb->update("Downloaded $rd_entry->{'location'}");
-}
+RepoMirror::ListDownloader->new({ 'list' => $repomd_list, 'pb' => $pb, 'uri_file' => $uri_file, 'uri_url' => $uri_url })->sync();
 
 # we should have pushed the primary metadata out to disk when we downloaded the repodata
 my $primarymd = $uri_file->generate($primarymd_location)->retrieve({ 'decompress' => 1 });
@@ -529,27 +565,7 @@ my $primarymd_list = RepoMirror::XMLParser->new({ 'mdtype' => 'primary', 'filena
 
 # download all of the rpm files listed in the primary.xml variant
 $pb = RepoMirror::ProgressBar->new({ 'message' => 'Downloading RPMs', 'count' => scalar(@{$primarymd_list}), 'silent' => $option_silent });
-foreach my $rpm_entry (@{$primarymd_list})
-{
-	$pb->message("Downloading $rpm_entry->{'location'}");
-
-	my $rpm_file = $uri_file->generate($rpm_entry->{'location'});
-	my $rpm_url = $uri_url->generate($rpm_entry->{'location'});
-
-	$rpm_file->retrieve();
-	# determine if our on-disk contents match whats in primary.xml and re-download if not
-	unless(-f $rpm_file->path() && $rpm_file->xcompare($rpm_entry))
-	{
-		$rpm_url->retrieve();
-
-		throw Error::Simple("Size/hash mismatch vs metadata downloading: " . $rpm_url->path())
-			unless($rpm_url->xcompare($rpm_entry));
-
-		RepoMirror::Helper->file_write($rpm_file->path(), $rpm_url->retrieve());
-	}
-
-	$pb->update("Downloaded $rpm_entry->{'location'}");
-}
+RepoMirror::ListDownloader->new({ 'list' => $primarymd_list, 'pb' => $pb, 'uri_file' => $uri_file, 'uri_url' => $uri_url })->sync();
 
 # write the new repomd.xml at the end, now we've downloaded all the metadata and rpms it references
 $pb = RepoMirror::ProgressBar->new({ 'message' => 'Writing repomd.xml', 'count' => 1, 'silent' => $option_silent });
