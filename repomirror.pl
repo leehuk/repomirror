@@ -144,6 +144,7 @@ use strict;
 use Carp;
 use Cwd qw(abs_path);
 use File::Basename qw(dirname);
+use File::Find qw(find);
 use File::Path qw(make_path);
 
 sub new
@@ -205,6 +206,23 @@ sub generate
 	{
 		return RepoMirror::URIObject->new({ 'path' => $self->{'path'} . $path, 'type' => $self->{'type'} });
 	}
+}
+
+sub list_builder
+{
+	my $self = shift;
+	push(@{$self->{'files'}}, $File::Find::name) if(-f "$_");
+}
+
+sub list
+{
+	my $self = shift;
+
+	confess "RepoMirror::URI->list() called on non-file" unless($self->{'type'} eq 'file');
+
+	$self->{'files'} = [];
+	find(sub { $self->list_builder($_) }, $self->{'path'});
+	return $self->{'files'};
 }
 
 #################
