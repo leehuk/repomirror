@@ -81,6 +81,54 @@ sub sync
 }
 
 #########################
+# RepoMirror::ListRemover
+# 	Class for removing local entries not in a built list
+#
+package RepoMirror::ListRemover;
+
+use strict;
+use Carp;
+use Data::Dumper;
+
+sub new
+{
+	my $name = shift;
+	my $options = shift || {};
+
+	my $self = bless({}, $name);
+
+	confess "Missing 'list' option" unless(defined($options->{'list'}));
+	confess "Missing 'pb' option" unless(defined($options->{'pb'}));
+	confess "Missing 'filelist' option" unless(defined($options->{'filelist'}));
+	confess "Missing 'uri_file' option" unless(defined($options->{'uri_file'}));
+
+	$self->{'list'} = $options->{'list'};
+	$self->{'pb'} = $options->{'pb'};
+	$self->{'filelist'} = $options->{'filelist'};
+	$self->{'uri_file'} = $options->{'uri_file'};
+
+	return $self;
+}
+
+sub sync
+{
+	my $self = shift;
+
+	# generate an array of files listed in the metadata with full paths
+	my $metadatalist = [$self->{'uri_file'}->generate('repodata/repomd.xml')->path()];
+	foreach my $element (@{$self->{'list'}})
+	{
+		push(@{$metadatalist}, $self->{'uri_file'}->generate($element->{'location'})->path());
+	}
+
+	foreach my $element (@{$self->{'filelist'}})
+	{
+		unlink($element) unless(grep(/^$element$/, @{$metadatalist}));
+		$self->{'pb'}->update();
+	}
+}
+
+#########################
 # RepoMirror::ProgressBar
 # 	Implements a simplistic progress bar for operations
 # 
@@ -530,10 +578,11 @@ sub mirror_usage
 }
 
 my $option_force = 0;
+my $option_remove = 0;
 my $option_silent = 0;
 
 my $options = {};
-getopts('d:fhsu:v', $options);
+getopts('d:fhrsu:v', $options);
 
 if(defined($options->{'h'}) || !defined($options->{'u'}) || !defined($options->{'d'}))
 {
@@ -542,6 +591,7 @@ if(defined($options->{'h'}) || !defined($options->{'u'}) || !defined($options->{
 }
 
 $option_force = 1 if(defined($options->{'f'}));
+$option_remove = 1 if(defined($options->{'r'}));
 $option_silent = 1 if(defined($options->{'s'}));
 
 # initialise the base path and urls
@@ -593,3 +643,11 @@ RepoMirror::ListDownloader->new({ 'list' => $primarymd_list, 'pb' => $pb, 'uri_f
 $pb = RepoMirror::ProgressBar->new({ 'message' => 'Writing repomd.xml', 'count' => 1, 'silent' => $option_silent });
 RepoMirror::Helper->file_write($repomd_file->path(), $repomd_url->retrieve());
 $pb->update();
+
+# obtain an up-to-date list of all files in our sync directory and then clear orphan content
+if($option_remove)
+{
+	my $filelist = $uri_file->list();
+	$pb = RepoMirror::ProgressBar->new({ 'message' => 'Removing orphan content', 'count' => scalar(@{$filelist}), 'silent' => $option_silent });
+	RepoMirror::ListRemover->new({ 'list' => [@{$repomd_list},@{$primarymd_list}], 'pb' => $pb, 'filelist' => $filelist, 'uri_file' => $uri_file })->sync();
+}
