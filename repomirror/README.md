@@ -33,8 +33,7 @@ in CentOS-6 and CentOS-7:
 * perl-File-Path
 * perl-Getopt-Std
 * perl-HTTP-Tiny
-* perl-IO-String
-* perl-XML-Tiny
+* perl-XML-Parser
 
 For CentOS this would be:
 ```
