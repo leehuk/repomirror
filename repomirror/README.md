@@ -8,13 +8,13 @@ intelligent in that unlike using wget in recursive mode (which is frankly just
 horrible), it will actually parse the metadata within the repository to 
 determine the contents and sync only whats required.
 
-It will compare the data from the repository to determine what if anything
+It will compare the XML data from the repository to determine what if anything
 it needs to download, then **optionally and not by default** cleans up orphaned 
 files from the local directory.
 
 Its effectively a perl variant of the reposync tool that isnt dependent in
-any way on yum.  It can therefore sync repos that arent listed in yum.repos.d
-and can also run on other distributions like Debian.
+any way on yum and can therefore sync repos that arent listed in yum.repos.d
+or run on other distributions like Debian.
 
 ## Repositories available via rsync
 If the repository you wish to sync is available via rsync, you **really**
@@ -39,17 +39,13 @@ in CentOS-6 and CentOS-7:
 For CentOS this would be:
 ```
 yum install perl perl-Carp perl-Digest-SHA perl-Error perl-File-Path perl-HTTP-Tiny \
-  perl-IO-String perl-PathTools
+  perl-PathTools perl-XML-Parser
 ```
 
 For Debian this would be:
 ```
-apt-get update && apt-get install perl perl-modules liberror-perl libio-string-perl
+apt-get update && apt-get install perl perl-modules liberror-perl libxml-parser-perl
 ```
-
-Unfortunately perl-XML-Tiny isnt available on CentOS or Debian and theres probably a
-reason for that, but the intent is to bundle it in the near future.  Unfortunately all
-of the other perl XML libraries are somewhat heavyweight for what this tool needs.
 
 ## Installation
 Install the requirements above, download it and run it.
