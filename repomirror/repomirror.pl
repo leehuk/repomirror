@@ -404,8 +404,7 @@ package RepoMirror::XMLParser;
 use strict;
 use Carp;
 use Error qw(:try);
-use IO::String;
-use XML::Tiny qw(parsefile);
+use XML::Parser;
 
 sub new
 {
@@ -418,37 +417,57 @@ sub new
 		unless($options->{'mdtype'} eq 'repomd' || $options->{'mdtype'} eq 'primary');
 
 	my $self = bless({}, $name);
-	$self->{'document'} = $options->{'document'};
 	$self->{'filename'} = $options->{'filename'};
 	$self->{'mdtype'} = $options->{'mdtype'};
+	$self->{'document'} = $self->sensiblexml($options->{'document'});
 
 	return $self;
 }
 
+sub sensiblexml
+{
+	my ($self, $document) = (shift, shift);
+	my $xml = XML::Parser->new(Style => 'Tree')->parse($document);
+	return $self->sensiblexml_iter(shift(@{$xml}), shift(@{$xml}), {});
+}
+
+sub sensiblexml_iter
+{
+	my ($self, $element, $data, $structure) = (shift, shift, shift, shift);
+
+	$structure->{'name'} = $element;
+
+	my $args = shift(@{$data});
+	while(my($key, $value) = each(%{$args}))
+	{
+		$structure->{'attrib'}->{$key} = $value;
+	}
+
+	while(scalar(@{$data}) > 0)
+	{
+		my ($subelem, $subdata) = (shift(@{$data}), shift(@{$data}));
+
+		if($subelem eq '0')
+		{
+			next if($subdata =~ /^\s+$/m);
+			$structure->{'value'} = $subdata;
+		}
+		else
+		{
+			$structure->{'content'} ||= [];
+			push(@{$structure->{'content'}}, $self->sensiblexml_iter($subelem, $subdata, {}));
+
+		}
+	}
+
+	return $structure;
+}
+
 sub parse
 {
-	my $self = shift;
-	my $filename = shift;
-	my $xmlcontent = shift;
+	my ($self, $filename) = (shift, shift);
 
-	my $xml;
-	try {
-		$xml = parsefile(IO::String->new($self->{'document'}));
-	}
-	catch Error with {
-		my $error = shift;
-		chomp($error->{'-text'});
-
-		confess "XML Parse Error: $filename $error->{'-text'}";
-	};
-
-	confess "XML Error: $filename Root structure is not an array"
-		unless(ref($xml) eq "ARRAY");
-	confess "XML Error: $filename Duplicate root elements"
-		unless(scalar(@{$xml}) == 1);
-
-	# nest down into our first element
-	$xml = @{$xml}[0];
+	my $xml = $self->{'document'};
 
 	confess "XML Error: $self->{'filename'} Root element does not have a name"
 		unless(defined($xml->{'name'}));
@@ -507,13 +526,13 @@ sub parse_content_object
 			throw Error::Simple("Unable to locate checksum type for data block '$type'")
 				unless(defined($element->{'attrib'}) && defined($element->{'attrib'}->{'type'}));
 			throw Error::Simple("Unable to locate checksum value for data block '$type'")
-				unless(defined($element->{'content'}) && ref($element->{'content'}) eq 'ARRAY' && scalar(@{$element->{'content'}}) == 1 && defined($element->{'content'}[0]->{'content'}));
+				unless(defined($element->{'value'}));
 			throw Error::Simple("Unknown checksum type '$element->{'attrib'}->{'type'}' for data block '$type'")
 				unless($element->{'attrib'}->{'type'} eq 'sha1' || $element->{'attrib'}->{'type'} eq 'sha256');
 
 			push(@{$contentobj->{'checksum'}}, {
 				'type'		=> $element->{'attrib'}->{'type'},
-				'value'		=> $element->{'content'}[0]->{'content'},
+				'value'		=> $element->{'value'},
 			});
 		}
 		elsif($element->{'name'} eq 'location')
@@ -528,9 +547,9 @@ sub parse_content_object
 			if($self->{'mdtype'} eq 'repomd')
 			{
 				throw Error::Simple("Unable to locate size value for data block '$type'")
-					unless(defined($element->{'content'}) && ref($element->{'content'}) eq 'ARRAY' && scalar(@{$element->{'content'}}) == 1 && defined($element->{'content'}[0]->{'content'}));
+					unless(defined($element->{'value'}));
 
-				$contentobj->{'size'} = $element->{'content'}[0]->{'content'};
+				$contentobj->{'size'} = $element->{'value'};
 			}
 			elsif($self->{'mdtype'} eq 'primary')
 			{
