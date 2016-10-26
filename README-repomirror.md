@@ -53,7 +53,7 @@ Preferably dont run it as root, particularly if you've told it to remove orphane
 
 ## Usage
 ```
-[19:20 repo@repo:~]$ ./repomirror.pl 
+[19:20 repo@repo:~/repotools] ./repomirror.pl 
 Usage: ./repomirror.pl [-fhrs] -d <directory> -u <url>
      * -d: Directory to mirror to (required).
 	       When -r(emove) is specified, *everything* within this folder
