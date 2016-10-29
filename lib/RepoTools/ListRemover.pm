@@ -11,12 +11,10 @@ sub new
 	my $self = bless({}, $name);
 
 	confess "Missing 'list' option" unless(defined($options->{'list'}));
-	confess "Missing 'pb' option" unless(defined($options->{'pb'}));
 	confess "Missing 'filelist' option" unless(defined($options->{'filelist'}));
 	confess "Missing 'uri_file' option" unless(defined($options->{'uri_file'}));
 
 	$self->{'list'} = $options->{'list'};
-	$self->{'pb'} = $options->{'pb'};
 	$self->{'filelist'} = $options->{'filelist'};
 	$self->{'uri_file'} = $options->{'uri_file'};
 
@@ -37,7 +35,6 @@ sub sync
 	foreach my $element (@{$self->{'filelist'}})
 	{
 		unlink($element) unless(grep(/^$element$/, @{$metadatalist}));
-		$self->{'pb'}->update();
 	}
 }
 

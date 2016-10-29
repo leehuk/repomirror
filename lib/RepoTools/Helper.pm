@@ -12,4 +12,12 @@ sub file_write
 	close($file);
 }
 
+sub stdout_message
+{
+	my ($name, $message, $options) = (shift, shift, shift);
+
+	return if($options->{'silent'});
+	print "$message\n" unless($options->{'silent'});
+}
+
 1;

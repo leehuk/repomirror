@@ -20,6 +20,10 @@ sub new
 	$self->{'count'} 		= $options->{'count'};
 	$self->{'silent'}		= $options->{'options'}->{'silent'};
 
+	# if output is to a terminal, default to a prettier prompt with status updates,
+	# otherwise we just output the first message we're given and go silent
+	$self->{'pretty'} = 1 if(-t STDOUT);
+
 	$|=1;
 
 	$self->message();
@@ -33,10 +37,18 @@ sub message
 
 	return if($self->{'silent'});
 
-	my $percent = int(($self->{'current'}/$self->{'count'})*100);
-	my $actmessage = ($percent == 100 ? $self->{'message'} : (defined($message) ? $message : $self->{'message'}));
+	if($self->{'pretty'})
+	{
+		my $percent = int(($self->{'current'}/$self->{'count'})*100);
+		my $actmessage = ($percent == 100 ? $self->{'message'} : (defined($message) ? $message : $self->{'message'}));
 
-	printf("\r\e[K[%3d%%] %s%s", $percent, $actmessage, ($percent == 100 ? "\n" : ""));
+		printf("\r\e[K[%3d%%] %s%s", $percent, $actmessage, ($percent == 100 ? "\n" : ""));
+	}
+	else
+	{
+		print "$self->{'message'}\n";
+		$self->{'silent'} = 1;
+	}
 }
 
 sub update
