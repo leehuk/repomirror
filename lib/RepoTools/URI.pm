@@ -11,19 +11,26 @@ use RepoTools::URIObject;
 
 sub new
 {
-	my $name = shift;
-	my $options = shift || {};
+	my ($name, $uri) = (shift, shift);
 
-	confess "Missing option: path:$options->{'path'} type:$options->{'type'}"
-		unless(defined($options->{'path'}) && defined($options->{'type'}));
-	confess "Invalid 'type' option: $options->{'type'}"
-		unless($options->{'type'} eq 'file' || $options->{'type'} eq 'url');
-	confess "Safety hat: Refusing to use root filesystem as a sync location"
-		if($options->{'type'} eq 'file' && abs_path($options->{'path'}) eq '/');
+	confess "Missing URI parameter"
+		unless(defined($uri));
 
 	my $self = bless({}, $name);
-	$self->{'path'} = $options->{'path'};
-	$self->{'type'} = $options->{'type'};
+
+	if($uri =~ /^https?:\/\//)
+	{
+		$self->{'path'} = $uri;
+		$self->{'type'} = 'url';
+	}
+	else
+	{
+		$self->{'path'} = $uri;
+		$self->{'type'} = 'file';
+	}
+
+	confess "Safety hat: Refusing to use root filesystem as a sync location"
+		if($self->{'type'} eq 'file' && abs_path($self->{'path'}) eq '/');
 
 	# rework the path to be absolute if its on disk and ensure it exists
 	if($self->{'type'} eq 'file')
