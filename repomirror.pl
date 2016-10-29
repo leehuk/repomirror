@@ -17,10 +17,7 @@ use lib "$Bin/lib";
 use Carp;
 use Getopt::Std qw(getopts);
 
-use RepoTools::ListDownloader;
-use RepoTools::ListRemover;
-use RepoTools::URI;
-use RepoTools::XMLParser;
+use RepoTools::Sync;
 
 sub mirror_usage
 {
@@ -89,64 +86,23 @@ if((defined($options->{'source'}) && !defined($options->{'dest'})) || (!defined(
 	exit(1);
 }
 
-# initialise the base path and urls
-my $uri_source = RepoTools::URI->new($options->{'source'});
-my $uri_dest = RepoTools::URI->new($options->{'dest'});
-
-if($uri_dest->{'type'} ne 'file')
+my $synclist = [];
+if($options->{'config'})
 {
-	print "Invalid Usage: Destination (-d) option must be a directory.\n";
-	exit(1);
 }
-
-# lets go grab our repomd.xml first and parse it into a tree
-RepoTools::Helper->stdout_message('Downloading repomd.xml', $options);
-my $repomd_url = $uri_source->generate('repodata/repomd.xml');
-my $repomd_file = $uri_dest->generate('repodata/repomd.xml');
-my $repomd_list = RepoTools::XMLParser->new({ 'mdtype' => 'repomd', 'filename' => 'repomd.xml', 'document' => $repomd_url->retrieve() })->parse();
-
-# if our repomd.xml matches, the repo is fully synced
-if(-f $repomd_file->path() && !$options->{'force'})
+else
 {
-	# retrieve the on-disk file to get its sizing/checksums
-	$repomd_file->retrieve();
-	exit(0) if($repomd_url->size() == $repomd_file->size() && $repomd_url->checksum('sha256') eq $repomd_file->checksum('sha256'));
-}
+	# initialise the base path and urls
+	my $uri_source = RepoTools::URI->new($options->{'source'});
+	my $uri_dest = RepoTools::URI->new($options->{'dest'});
 
-# before we continue, double check we have a 'primary' metadata object as that contains the list of rpms
-my $primarymd_location;
-foreach my $rd_entry (@{$repomd_list})
-{
-	if($rd_entry->{'type'} eq 'primary')
+	if($uri_dest->{'type'} ne 'file')
 	{
-		$primarymd_location = $rd_entry->{'location'};
-		last;
+		print "Invalid Usage: Destination (-d) option must be a directory.\n";
+		exit(1);
 	}
+
+	push(@{$synclist}, { 'source' => $uri_source, 'dest' => $uri_dest });
 }
 
-throw Error::Simple("Unable to locate 'primary' metadata within repomd.xml")
-	unless(defined($primarymd_location));
-
-# download all of the repodata files listed in repomd.xml
-RepoTools::Helper->stdout_message('Downloading repodata', $options);
-RepoTools::ListDownloader->new({ 'list' => $repomd_list, 'uri_source' => $uri_source, 'uri_dest' => $uri_dest })->sync();
-
-# we should have pushed the primary metadata out to disk when we downloaded the repodata
-my $primarymd = $uri_dest->generate($primarymd_location)->retrieve({ 'decompress' => 1 });
-my $primarymd_list = RepoTools::XMLParser->new({ 'mdtype' => 'primary', 'filename' => $primarymd_location, 'document' => $primarymd })->parse();
-
-# download all of the rpm files listed in the primary.xml variant
-RepoTools::Helper->stdout_message('Downloading RPMs', $options);
-RepoTools::ListDownloader->new({ 'list' => $primarymd_list, 'uri_source' => $uri_source, 'uri_dest' => $uri_dest })->sync();
-
-# write the new repomd.xml at the end, now we've downloaded all the metadata and rpms it references
-RepoTools::Helper->stdout_message('Writing repomd.xml', $options);
-RepoTools::Helper->file_write($repomd_file->path(), $repomd_url->retrieve());
-
-# obtain an up-to-date list of all files in our sync directory and then clear orphan content
-if($options->{'remove'})
-{
-	my $filelist = $uri_dest->list();
-	RepoTools::Helper->stdout_message('Removing orphan content', $options);
-	RepoTools::ListRemover->new({ 'list' => [@{$repomd_list},@{$primarymd_list}], 'filelist' => $filelist, 'uri_dest' => $uri_dest })->sync();
-}
+RepoTools::Sync->new({ 'synclist' => $synclist, 'options' => $options })->sync();
