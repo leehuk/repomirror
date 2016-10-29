@@ -19,7 +19,6 @@ use Getopt::Std qw(getopts);
 
 use RepoTools::ListDownloader;
 use RepoTools::ListRemover;
-use RepoTools::TermUpdater;
 use RepoTools::URI;
 use RepoTools::XMLParser;
 
