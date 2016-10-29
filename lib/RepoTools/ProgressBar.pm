@@ -18,7 +18,7 @@ sub new
 	$self->{'message'}		= $options->{'message'};
 	$self->{'current'}		= 0;
 	$self->{'count'} 		= $options->{'count'};
-	$self->{'silent'}		= $options->{'silent'};
+	$self->{'silent'}		= $options->{'options'}->{'silent'};
 
 	$|=1;
 
