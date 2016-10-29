@@ -25,23 +25,32 @@ use RepoTools::XMLParser;
 
 sub mirror_usage
 {
+	print "Configuration Mode\n";
+	print "Usage: $0 [-fhrs] -c <config> [-n name]\n";
+	print "     * -c: YAML configuration file to use.\n";
+	print "       -n: Name of repo to sync.  If this option is not specified then\n";
+	print "           all repos within the configuration file are synced.\n";
+	print "\n";
+	print "Parameter Mode\n";
 	print "Usage: $0 [-fhrs] -d <directory> -u <url>\n";
 	print "     * -d: Directory to mirror to (required).\n";
 	print "           When -r (remove) is specified, *everything* within this folder\n";
 	print "           thats not listed in the repo will be *deleted*.\n";
+	print "     * -u: Sets the base URL for the repository (required).\n";
+	print "           This should be the same path used in a yum.repos.d file,\n";
+	print "           but without any variables like \$releasever etc.\n";
+	print "\n";
+	print "Common Options\n";
 	print "       -f: Force repodata/rpm sync when up to date.\n";
 	print "       -h: Show this help.\n";
 	print "       -r: Remove local files that are no longer on the mirror.\n";
 	print "           Its *strongly* recommended you run a download first without\n";
 	print "           this option to ensure you have your pathing correct.\n";
 	print "       -q: Be quiet other than for errors.\n";
-	print "     * -u: Sets the base URL for the repository (required).\n";
-	print "           This should be the same path used in a yum.repos.d file,\n";
-	print "           but without any variables like \$releasever etc.\n";
 }
 
 my $options_cli = {};
-getopts('d:fhqru:v', $options_cli);
+getopts('c:d:fhn:qru:v', $options_cli);
 
 if(defined($options_cli->{'h'}))
 {
@@ -53,8 +62,10 @@ if(defined($options_cli->{'h'}))
 # a sensible $options object around
 my $options = {};
 my $options_translate = {
+	'c'		=> 'config',
 	'd'		=> 'directory',
 	'f'		=> 'force',
+	'n'		=> 'name',
 	'r'		=> 'remove',
 	'q'		=> 'quiet',
 	'u'		=> 'url',
@@ -65,10 +76,17 @@ while(my($key, $value) = each(%{$options_cli}))
 	$options->{$options_translate->{$key}} = $value;
 }
 
-if(!defined($options->{'url'}) || !defined($options->{'directory'}))
+if((defined($options->{'config'}) || defined($options->{'name'})) && (defined($options->{'url'}) || defined($options->{'directory'})))
 {
-	print "Error: Missing directory or url option.\n";
-	print "       Run with the '-h' flag for usage information.\n";
+	print "Invalid Usage: Configuration Mode (-c or -n) and Parameter Mode (-d or -u) options specified.\n";
+	print "  Run '$0 -h' for usage information.\n";
+	exit(1);
+}
+
+if((defined($options->{'directory'}) && !defined($options->{'url'})) || (!defined($options->{'directory'}) && defined($options->{'url'})))
+{
+	print "Invalid Usage: Parameter Mode requires -d (directory) and -u (url) options.\n";
+	print "  Run '$0 -h' for usage information.\n";
 	exit(1);
 }
 
