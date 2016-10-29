@@ -31,7 +31,7 @@ sub mirror_usage
 	print "           all repos within the configuration file are synced.\n";
 	print "\n";
 	print "Parameter Mode\n";
-	print "Usage: $0 [-fhrs] -s <source> -d <directory>\n";
+	print "Usage: $0 [-fhrs] -s <source> -d <dest>\n";
 	print "     * -s: Sets the source URI for the repository (required).\n";
 	print "           This should be the same path used in a yum.repos.d file,\n";
 	print "           but without any variables like \$releasever etc.\n";
@@ -62,7 +62,7 @@ if(defined($options_cli->{'h'}))
 my $options = {};
 my $options_translate = {
 	'c'		=> 'config',
-	'd'		=> 'directory',
+	'd'		=> 'dest',
 	'f'		=> 'force',
 	'n'		=> 'name',
 	'r'		=> 'remove',
@@ -75,22 +75,22 @@ while(my($key, $value) = each(%{$options_cli}))
 	$options->{$options_translate->{$key}} = $value;
 }
 
-if((defined($options->{'config'}) || defined($options->{'name'})) && (defined($options->{'source'}) || defined($options->{'directory'})))
+if((defined($options->{'config'}) || defined($options->{'name'})) && (defined($options->{'source'}) || defined($options->{'dest'})))
 {
 	print "Invalid Usage: Configuration Mode (-c or -n) and Parameter Mode (-s or -d) options specified.\n";
 	print "  Run '$0 -h' for usage information.\n";
 	exit(1);
 }
 
-if((defined($options->{'source'}) && !defined($options->{'directory'})) || (!defined($options->{'source'}) && defined($options->{'directory'})))
+if((defined($options->{'source'}) && !defined($options->{'dest'})) || (!defined($options->{'source'}) && defined($options->{'dest'})))
 {
-	print "Invalid Usage: Parameter Mode requires -s (source) and -d (dest. directory) options.\n";
+	print "Invalid Usage: Parameter Mode requires -s (source) and -d (dest) options.\n";
 	print "  Run '$0 -h' for usage information.\n";
 	exit(1);
 }
 
 # initialise the base path and urls
-my $uri_file = RepoTools::URI->new({ 'path' => $options->{'directory'}, 'type' => 'file' });
+my $uri_file = RepoTools::URI->new({ 'path' => $options->{'dest'}, 'type' => 'file' });
 my $uri_url = RepoTools::URI->new({ 'path' => $options->{'source'}, 'type' => 'url' });
 
 # lets go grab our repomd.xml first and parse it into a tree
