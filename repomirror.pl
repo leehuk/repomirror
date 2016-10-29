@@ -19,7 +19,7 @@ use Getopt::Std qw(getopts);
 
 use RepoTools::ListDownloader;
 use RepoTools::ListRemover;
-use RepoTools::ProgressBar;
+use RepoTools::TermUpdater;
 use RepoTools::URI;
 use RepoTools::XMLParser;
 
@@ -77,7 +77,7 @@ my $uri_file = RepoTools::URI->new({ 'path' => $options->{'directory'}, 'type' =
 my $uri_url = RepoTools::URI->new({ 'path' => $options->{'url'}, 'type' => 'url' });
 
 # lets go grab our repomd.xml first and parse it into a tree
-my $pb = RepoTools::ProgressBar->new({ 'message' => 'Downloading repomd.xml', 'count' => 1, 'options' => $options });
+my $pb = RepoTools::TermUpdater->new({ 'message' => 'Downloading repomd.xml', 'count' => 1, 'options' => $options });
 my $repomd_file = $uri_file->generate('repodata/repomd.xml');
 my $repomd_url = $uri_url->generate('repodata/repomd.xml');
 my $repomd_list = RepoTools::XMLParser->new({ 'mdtype' => 'repomd', 'filename' => 'repomd.xml', 'document' => $repomd_url->retrieve() })->parse();
@@ -106,7 +106,7 @@ throw Error::Simple("Unable to locate 'primary' metadata within repomd.xml")
 	unless(defined($primarymd_location));
 
 # download all of the repodata files listed in repomd.xml
-$pb = RepoTools::ProgressBar->new({ 'message' => 'Downloading repodata', 'count' => scalar(@{$repomd_list}), 'options' => $options });
+$pb = RepoTools::TermUpdater->new({ 'message' => 'Downloading repodata', 'count' => scalar(@{$repomd_list}), 'options' => $options });
 RepoTools::ListDownloader->new({ 'list' => $repomd_list, 'pb' => $pb, 'uri_file' => $uri_file, 'uri_url' => $uri_url })->sync();
 
 # we should have pushed the primary metadata out to disk when we downloaded the repodata
@@ -114,11 +114,11 @@ my $primarymd = $uri_file->generate($primarymd_location)->retrieve({ 'decompress
 my $primarymd_list = RepoTools::XMLParser->new({ 'mdtype' => 'primary', 'filename' => $primarymd_location, 'document' => $primarymd })->parse();
 
 # download all of the rpm files listed in the primary.xml variant
-$pb = RepoTools::ProgressBar->new({ 'message' => 'Downloading RPMs', 'count' => scalar(@{$primarymd_list}), 'options' => $options });
+$pb = RepoTools::TermUpdater->new({ 'message' => 'Downloading RPMs', 'count' => scalar(@{$primarymd_list}), 'options' => $options });
 RepoTools::ListDownloader->new({ 'list' => $primarymd_list, 'pb' => $pb, 'uri_file' => $uri_file, 'uri_url' => $uri_url })->sync();
 
 # write the new repomd.xml at the end, now we've downloaded all the metadata and rpms it references
-$pb = RepoTools::ProgressBar->new({ 'message' => 'Writing repomd.xml', 'count' => 1, 'options' => $options });
+$pb = RepoTools::TermUpdater->new({ 'message' => 'Writing repomd.xml', 'count' => 1, 'options' => $options });
 RepoTools::Helper->file_write($repomd_file->path(), $repomd_url->retrieve());
 $pb->update();
 
@@ -126,6 +126,6 @@ $pb->update();
 if($options->{'remove'})
 {
 	my $filelist = $uri_file->list();
-	$pb = RepoTools::ProgressBar->new({ 'message' => 'Removing orphan content', 'count' => scalar(@{$filelist}), 'options' => $options });
+	$pb = RepoTools::TermUpdater->new({ 'message' => 'Removing orphan content', 'count' => scalar(@{$filelist}), 'options' => $options });
 	RepoTools::ListRemover->new({ 'list' => [@{$repomd_list},@{$primarymd_list}], 'pb' => $pb, 'filelist' => $filelist, 'uri_file' => $uri_file })->sync();
 }

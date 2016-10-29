@@ -1,4 +1,4 @@
-package RepoTools::ProgressBar;
+package RepoTools::TermUpdater;
 
 use strict;
 use Carp;
