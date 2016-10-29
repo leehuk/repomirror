@@ -35,16 +35,17 @@ in CentOS-6 and CentOS-7:
 * perl-HTTP-Tiny
 * perl-XML-Parser
 * perl-YAML
+* rsync
 
 For CentOS this would be:
 ```
 yum install perl perl-Carp perl-Digest-SHA perl-Error perl-File-Path perl-HTTP-Tiny \
-  perl-PathTools perl-XML-Parser perl-YAML
+  perl-PathTools perl-XML-Parser perl-YAML rsync
 ```
 
 For Debian this would be:
 ```
-apt-get update && apt-get install perl perl-modules liberror-perl libxml-parser-perl
+apt-get update && apt-get install perl perl-modules liberror-perl libxml-parser-perl libyaml-perl rsync
 ```
 
 ## Installation
