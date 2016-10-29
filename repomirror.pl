@@ -31,13 +31,13 @@ sub mirror_usage
 	print "           all repos within the configuration file are synced.\n";
 	print "\n";
 	print "Parameter Mode\n";
-	print "Usage: $0 [-fhrs] -d <directory> -u <url>\n";
-	print "     * -d: Directory to mirror to (required).\n";
-	print "           When -r (remove) is specified, *everything* within this folder\n";
-	print "           thats not listed in the repo will be *deleted*.\n";
-	print "     * -u: Sets the base URL for the repository (required).\n";
+	print "Usage: $0 [-fhrs] -s <source> -d <directory>\n";
+	print "     * -s: Sets the source URI for the repository (required).\n";
 	print "           This should be the same path used in a yum.repos.d file,\n";
 	print "           but without any variables like \$releasever etc.\n";
+	print "     * -d: Destination directory to mirror to (required).\n";
+	print "           When -r (remove) is specified, *everything* within this folder\n";
+	print "           thats not listed in the repo will be *deleted*.\n";
 	print "\n";
 	print "Common Options\n";
 	print "       -f: Force repodata/rpm sync when up to date.\n";
@@ -66,8 +66,8 @@ my $options_translate = {
 	'f'		=> 'force',
 	'n'		=> 'name',
 	'r'		=> 'remove',
+	's'		=> 'source',
 	'q'		=> 'quiet',
-	'u'		=> 'url',
 };
 
 while(my($key, $value) = each(%{$options_cli}))
@@ -75,23 +75,23 @@ while(my($key, $value) = each(%{$options_cli}))
 	$options->{$options_translate->{$key}} = $value;
 }
 
-if((defined($options->{'config'}) || defined($options->{'name'})) && (defined($options->{'url'}) || defined($options->{'directory'})))
+if((defined($options->{'config'}) || defined($options->{'name'})) && (defined($options->{'source'}) || defined($options->{'directory'})))
 {
-	print "Invalid Usage: Configuration Mode (-c or -n) and Parameter Mode (-d or -u) options specified.\n";
+	print "Invalid Usage: Configuration Mode (-c or -n) and Parameter Mode (-s or -d) options specified.\n";
 	print "  Run '$0 -h' for usage information.\n";
 	exit(1);
 }
 
-if((defined($options->{'directory'}) && !defined($options->{'url'})) || (!defined($options->{'directory'}) && defined($options->{'url'})))
+if((defined($options->{'source'}) && !defined($options->{'directory'})) || (!defined($options->{'source'}) && defined($options->{'directory'})))
 {
-	print "Invalid Usage: Parameter Mode requires -d (directory) and -u (url) options.\n";
+	print "Invalid Usage: Parameter Mode requires -s (source) and -d (dest. directory) options.\n";
 	print "  Run '$0 -h' for usage information.\n";
 	exit(1);
 }
 
 # initialise the base path and urls
 my $uri_file = RepoTools::URI->new({ 'path' => $options->{'directory'}, 'type' => 'file' });
-my $uri_url = RepoTools::URI->new({ 'path' => $options->{'url'}, 'type' => 'url' });
+my $uri_url = RepoTools::URI->new({ 'path' => $options->{'source'}, 'type' => 'url' });
 
 # lets go grab our repomd.xml first and parse it into a tree
 RepoTools::Helper->stdout_message('Downloading repomd.xml', $options);
