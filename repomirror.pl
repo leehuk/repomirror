@@ -32,7 +32,7 @@ sub mirror_usage
 	print "\n";
 	print "Parameter Mode\n";
 	print "Usage: $0 [-fhrs] -s <source> -d <dest>\n";
-	print "     * -s: Sets the source URI for the repository (required).\n";
+	print "     * -s: Source URI for the repository (required).\n";
 	print "           This should be the same path used in a yum.repos.d file,\n";
 	print "           but without any variables like \$releasever etc.\n";
 	print "     * -d: Destination directory to mirror to (required).\n";
