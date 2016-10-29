@@ -27,21 +27,21 @@ sub mirror_usage
 {
 	print "Usage: $0 [-fhrs] -d <directory> -u <url>\n";
 	print "     * -d: Directory to mirror to (required).\n";
-	print "           When -r(emove) is specified, *everything* within this folder\n";
+	print "           When -r (remove) is specified, *everything* within this folder\n";
 	print "           thats not listed in the repo will be *deleted*.\n";
 	print "       -f: Force repodata/rpm sync when up to date.\n";
 	print "       -h: Show this help.\n";
 	print "       -r: Remove local files that are no longer on the mirror.\n";
 	print "           Its *strongly* recommended you run a download first without\n";
 	print "           this option to ensure you have your pathing correct.\n";
-	print "       -s: Be silent other than for errors.\n";
+	print "       -q: Be quiet other than for errors.\n";
 	print "     * -u: Sets the base URL for the repository (required).\n";
 	print "           This should be the same path used in a yum.repos.d file,\n";
 	print "           but without any variables like \$releasever etc.\n";
 }
 
 my $options_cli = {};
-getopts('d:fhrsu:v', $options_cli);
+getopts('d:fhqru:v', $options_cli);
 
 if(defined($options_cli->{'h'}))
 {
@@ -56,7 +56,7 @@ my $options_translate = {
 	'd'		=> 'directory',
 	'f'		=> 'force',
 	'r'		=> 'remove',
-	's'		=> 'silent',
+	'q'		=> 'quiet',
 	'u'		=> 'url',
 };
 

@@ -34,11 +34,12 @@ in CentOS-6 and CentOS-7:
 * perl-Getopt-Std
 * perl-HTTP-Tiny
 * perl-XML-Parser
+* perl-YAML
 
 For CentOS this would be:
 ```
 yum install perl perl-Carp perl-Digest-SHA perl-Error perl-File-Path perl-HTTP-Tiny \
-  perl-PathTools perl-XML-Parser
+  perl-PathTools perl-XML-Parser perl-YAML
 ```
 
 For Debian this would be:
@@ -53,17 +54,17 @@ Preferably dont run it as root, particularly if you've told it to remove orphane
 
 ## Usage
 ```
-[19:20 repo@repo:~/repotools] ./repomirror.pl 
+[19:31 repo@repo:~/repotools]$ ./repomirror.pl -h
 Usage: ./repomirror.pl [-fhrs] -d <directory> -u <url>
      * -d: Directory to mirror to (required).
-	       When -r(emove) is specified, *everything* within this folder
+           When -r (remove) is specified, *everything* within this folder
            thats not listed in the repo will be *deleted*.
        -f: Force repodata/rpm sync when up to date.
        -h: Show this help.
        -r: Remove local files that are no longer on the mirror.
-	       Its *strongly* recommended you run a download first without
-		   this option to ensure you have your pathing correct.
-       -s: Be silent other than for errors.
+           Its *strongly* recommended you run a download first without
+           this option to ensure you have your pathing correct.
+       -q: Be quiet other than for errors.
      * -u: Sets the base URL for the repository (required).
            This should be the same path used in a yum.repos.d file,
            but without any variables like $releasever etc.
