@@ -129,7 +129,7 @@ throw Error::Simple("Unable to locate 'primary' metadata within repomd.xml")
 
 # download all of the repodata files listed in repomd.xml
 RepoTools::Helper->stdout_message('Downloading repodata', $options);
-RepoTools::ListDownloader->new({ 'list' => $repomd_list, 'uri_file' => $uri_dest, 'uri_url' => $uri_source })->sync();
+RepoTools::ListDownloader->new({ 'list' => $repomd_list, 'uri_source' => $uri_source, 'uri_dest' => $uri_dest })->sync();
 
 # we should have pushed the primary metadata out to disk when we downloaded the repodata
 my $primarymd = $uri_dest->generate($primarymd_location)->retrieve({ 'decompress' => 1 });
@@ -137,7 +137,7 @@ my $primarymd_list = RepoTools::XMLParser->new({ 'mdtype' => 'primary', 'filenam
 
 # download all of the rpm files listed in the primary.xml variant
 RepoTools::Helper->stdout_message('Downloading RPMs', $options);
-RepoTools::ListDownloader->new({ 'list' => $primarymd_list, 'uri_file' => $uri_dest, 'uri_url' => $uri_source })->sync();
+RepoTools::ListDownloader->new({ 'list' => $primarymd_list, 'uri_source' => $uri_source, 'uri_dest' => $uri_dest })->sync();
 
 # write the new repomd.xml at the end, now we've downloaded all the metadata and rpms it references
 RepoTools::Helper->stdout_message('Writing repomd.xml', $options);
@@ -148,5 +148,5 @@ if($options->{'remove'})
 {
 	my $filelist = $uri_dest->list();
 	RepoTools::Helper->stdout_message('Removing orphan content', $options);
-	RepoTools::ListRemover->new({ 'list' => [@{$repomd_list},@{$primarymd_list}], 'filelist' => $filelist, 'uri_file' => $uri_dest })->sync();
+	RepoTools::ListRemover->new({ 'list' => [@{$repomd_list},@{$primarymd_list}], 'filelist' => $filelist, 'uri_dest' => $uri_dest })->sync();
 }
