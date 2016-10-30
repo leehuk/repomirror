@@ -6,6 +6,7 @@
 package RepoTools::Sync;
 
 use strict;
+use Capture::Tiny qw(capture);
 use Carp;
 
 use RepoTools::Helper;
@@ -41,7 +42,7 @@ sub sync
 		{
 			$self->sync_repo_http($sync);
 		}
-		else
+		elsif($sync->{'source'}->{'type'} =~ /^(rsync|file)$/)
 		{
 			$self->sync_repo_rsync($sync);
 		}
@@ -111,6 +112,21 @@ sub sync_repo_http
 sub sync_repo_rsync
 {
 	my ($self, $sync) = (shift, shift);
+
+	RepoTools::Helper->stdout_message((defined($sync->{'name'}) ? "[$sync->{'name'}] " : "") . 'Running rsync', $self->{'options'});
+
+	my $uri_source = $sync->{'source'};
+	my $uri_dest = $sync->{'dest'};
+
+	my ($stdout, $stderr, $retval) = capture {
+		system("rsync -a " . ($self->{'options'}->{'remove'} ? '--delete-after ' : '') . (defined($sync->{'rsync_args'}) ? "$sync->{'rsync_args'} " : '') . "'$uri_source->{'path'}' '$uri_dest->{'path'}'");
+	};
+
+	if($retval != 0)
+	{
+		print STDERR $stderr;
+		confess "Error running rsync";
+	}
 }
 
 1;
