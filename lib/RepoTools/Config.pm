@@ -48,7 +48,7 @@ sub parse
 		while(my($key, $value) = each(%{$repodata}))
 		{
 			confess "Error parsing configuration file: Unknown option '$key'"
-				unless($key =~ /^(source|dest|disabled)$/);
+				unless($key =~ /^(source|dest|rsync_args|disabled)$/);
 		}
 	}
 

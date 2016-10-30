@@ -97,14 +97,14 @@ if(defined($options->{'config'}))
 			unless(defined($config->{$options->{'name'}}));
 
 		my $repodata = $config->{$options->{'name'}};
-		push(@{$synclist}, { name => $options->{'name'}, source => $repodata->{'source'}, dest => $repodata->{'dest'} });
+		push(@{$synclist}, { name => $options->{'name'}, source => $repodata->{'source'}, dest => $repodata->{'dest'}, rsync_args => $repodata->{'rsync_args'} });
 	}
 	else
 	{
 		while(my($repo, $repodata) = each(%{$config}))
 		{
 			next if(defined($repodata->{'disabled'}) && $repodata->{'disabled'} =~ /^(1|yes|true)$/i);
-			push(@{$synclist}, { name => $repo, source => $repodata->{'source'}, dest => $repodata->{'dest'} });
+			push(@{$synclist}, { name => $repo, source => $repodata->{'source'}, dest => $repodata->{'dest'}, rsync_args => $repodata->{'rsync_args'} });
 		}
 
 		croak "No repositories to sync"
@@ -125,7 +125,7 @@ foreach my $sync (@{$synclist})
 	croak "Error: Destination is not a local folder"
 		unless($uri_dest->{'type'} eq 'file');
 
-	push(@{$urisynclist}, { name => $sync->{'name'}, source => $uri_source, dest => $uri_dest });
+	push(@{$urisynclist}, { name => $sync->{'name'}, source => $uri_source, dest => $uri_dest, rsync_args => $sync->{'rsync_args'} });
 }
 
 RepoTools::Sync->new({ 'synclist' => $urisynclist, 'options' => $options })->sync();
