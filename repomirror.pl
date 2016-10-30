@@ -103,7 +103,7 @@ if(defined($options->{'config'}))
 	{
 		while(my($repo, $repodata) = each(%{$config}))
 		{
-			next if(defined($repodata->{'disabled'}) && $repodata->{'disabled'} =~ /^1|yes|true/i);
+			next if(defined($repodata->{'disabled'}) && $repodata->{'disabled'} =~ /^(1|yes|true)$/i);
 			push(@{$synclist}, { name => $repo, source => $repodata->{'source'}, dest => $repodata->{'dest'} });
 		}
 
