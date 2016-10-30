@@ -51,7 +51,7 @@ sub sync_repo_http
 	my $uri_dest = $sync->{'dest'};
 
 	# lets go grab our repomd.xml first and parse it into a tree
-	RepoTools::Helper->stdout_message('Downloading repomd.xml', $self->{'options'});
+	RepoTools::Helper->stdout_message((defined($sync->{'name'}) ? "[$sync->{'name'}] " : "") . 'Downloading repomd.xml', $self->{'options'});
 	my $repomd_url = $uri_source->generate('repodata/repomd.xml');
 	my $repomd_file = $uri_dest->generate('repodata/repomd.xml');
 	my $repomd_list = RepoTools::XMLParser->new({ 'mdtype' => 'repomd', 'filename' => 'repomd.xml', 'document' => $repomd_url->retrieve() })->parse();
@@ -61,7 +61,7 @@ sub sync_repo_http
 	{
 		# retrieve the on-disk file to get its sizing/checksums
 		$repomd_file->retrieve();
-		exit(0) if($repomd_url->size() == $repomd_file->size() && $repomd_url->checksum('sha256') eq $repomd_file->checksum('sha256'));
+		return if($repomd_url->size() == $repomd_file->size() && $repomd_url->checksum('sha256') eq $repomd_file->checksum('sha256'));
 	}
 
 	# before we continue, double check we have a 'primary' metadata object as that contains the list of rpms
@@ -79,7 +79,7 @@ sub sync_repo_http
 		unless(defined($primarymd_location));
 
 	# download all of the repodata files listed in repomd.xml
-	RepoTools::Helper->stdout_message('Downloading repodata', $self->{'options'});
+	RepoTools::Helper->stdout_message((defined($sync->{'name'}) ? "[$sync->{'name'}] " : "") . 'Downloading repodata', $self->{'options'});
 	RepoTools::ListDownloader->new({ 'list' => $repomd_list, 'uri_source' => $uri_source, 'uri_dest' => $uri_dest })->sync();
 
 	# we should have pushed the primary metadata out to disk when we downloaded the repodata
@@ -87,18 +87,18 @@ sub sync_repo_http
 	my $primarymd_list = RepoTools::XMLParser->new({ 'mdtype' => 'primary', 'filename' => $primarymd_location, 'document' => $primarymd })->parse();
 
 	# download all of the rpm files listed in the primary.xml variant
-	RepoTools::Helper->stdout_message('Downloading RPMs', $self->{'options'});
+	RepoTools::Helper->stdout_message((defined($sync->{'name'}) ? "[$sync->{'name'}] " : "") . 'Downloading RPMs', $self->{'options'});
 	RepoTools::ListDownloader->new({ 'list' => $primarymd_list, 'uri_source' => $uri_source, 'uri_dest' => $uri_dest })->sync();
 
 	# write the new repomd.xml at the end, now we've downloaded all the metadata and rpms it references
-	RepoTools::Helper->stdout_message('Writing repomd.xml', $self->{'options'});
+	RepoTools::Helper->stdout_message((defined($sync->{'name'}) ? "[$sync->{'name'}] " : "") . 'Writing repomd.xml', $self->{'options'});
 	RepoTools::Helper->file_write($repomd_file->path(), $repomd_url->retrieve());
 
 	# obtain an up-to-date list of all files in our sync directory and then clear orphan content
 	if($self->{'options'}->{'remove'})
 	{
 		my $filelist = $uri_dest->list();
-		RepoTools::Helper->stdout_message('Removing orphan content', $self->{'options'});
+		RepoTools::Helper->stdout_message((defined($sync->{'name'}) ? "[$sync->{'name'}] " : "") . 'Removing orphan content', $self->{'options'});
 		RepoTools::ListRemover->new({ 'list' => [@{$repomd_list},@{$primarymd_list}], 'filelist' => $filelist, 'uri_dest' => $uri_dest })->sync();
 	}
 }
