@@ -119,10 +119,12 @@ sub sync_repo_rsync
 	my $uri_dest = $sync->{'dest'};
 
 	my $param_delete = ($self->{'options'}->{'remove'} ? '--delete-after' : '');
+	# the contimeout option is only valid for rsync -> disk, not disk -> disk
+	my $param_timeout = ($sync->{'source'}->{'type'} eq 'rsync' ? '--contimeout=60' : '');
 	my $param_args = (defined($sync->{'rsync_args'}) ? "$sync->{'rsync_args'} " : '');
 
 	my ($stdout, $stderr, $retval) = capture {
-		system("rsync -a --timeout=60 --contimeout=60 $param_delete $param_args '$uri_source->{'path'}' '$uri_dest->{'path'}'");
+		system("rsync -a --timeout=60 $param_timeout $param_delete $param_args '$uri_source->{'path'}' '$uri_dest->{'path'}'");
 	};
 
 	if($retval != 0)
