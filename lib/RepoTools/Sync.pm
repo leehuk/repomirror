@@ -1,3 +1,8 @@
+# RepoTools::Sync
+# 	Module to handle the process for syncing a repo
+#
+# Copyright (C) 2016 Lee H <lee@leeh.co.uk>
+# Released under the MIT License
 package RepoTools::Sync;
 
 use strict;

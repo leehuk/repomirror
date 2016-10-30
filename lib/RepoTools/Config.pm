@@ -1,3 +1,8 @@
+# RepoTools::Config
+# 	Module for parsing ini configuration files
+#
+# Copyright (C) 2016 Lee H <lee@leeh.co.uk>
+# Released under the MIT License
 package RepoTools::Config;
 
 use strict;

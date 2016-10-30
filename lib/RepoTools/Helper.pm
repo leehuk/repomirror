@@ -1,3 +1,8 @@
+# RepoTools::Helper
+# 	Module containing various helper functions
+#
+# Copyright (C) 2016 Lee H <lee@leeh.co.uk>
+# Released under the MIT License
 package RepoTools::Helper;
 
 use strict;

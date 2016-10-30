@@ -1,3 +1,8 @@
+# RepoTools::URIObject
+# 	Module to interact with a specific URI object (e.g. a file or http link)
+#
+# Copyright (C) 2016 Lee H <lee@leeh.co.uk>
+# Released under the MIT License
 package RepoTools::URIObject;
 
 use strict;

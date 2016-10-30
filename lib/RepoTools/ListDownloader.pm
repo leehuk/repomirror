@@ -1,3 +1,8 @@
+# RepoTools::ListDownloader
+# 	Module to download all required files from a given list
+#
+# Copyright (C) 2016 Lee H <lee@leeh.co.uk>
+# Released under the MIT License
 package RepoTools::ListDownloader;
 
 use strict;

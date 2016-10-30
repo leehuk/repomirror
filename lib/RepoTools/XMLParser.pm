@@ -1,3 +1,8 @@
+# RepoTools::XMLParser
+# 	Module to parse repomd.xml and primary.xml repodata files
+#
+# Copyright (C) 2016 Lee H <lee@leeh.co.uk>
+# Released under the MIT License
 package RepoTools::XMLParser;
 
 use strict;

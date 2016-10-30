@@ -4,7 +4,6 @@
 # 	Tool for mirroring RPM based repositories via HTTP(s) in a reasonably intelligent manner.
 #
 # Copyright (C) 2016 Lee H <lee@leeh.uk>
-#
 # Released under the MIT License
 
 use strict;
