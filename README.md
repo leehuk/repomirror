@@ -1,8 +1,12 @@
-# repotools
+# repomirrortools
 ## Overview
-Collection of tools for integrating with and working on RPM based repositories.
+Collection of tools for assisting with the mirroring of RPM based repos consumed
+by yum or dnf.
 
-Information on each tool can be found within the various other README-... files.
+These tools are intended mainly for situations where you wish to manage an internal
+mirror of public repositories, some of which may only be available via HTTP(s).
 
 ## repomirror
 Mirrors repositories in a reasonably intelligent manner.
+
+[repomirror documentation](docs/repomirror.md)
