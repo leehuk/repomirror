@@ -17,6 +17,7 @@ use lib "$Bin/lib";
 use Carp;
 use Getopt::Std qw(getopts);
 
+use RepoTools::Config;
 use RepoTools::Sync;
 
 sub mirror_usage
@@ -87,22 +88,45 @@ if((defined($options->{'source'}) && !defined($options->{'dest'})) || (!defined(
 }
 
 my $synclist = [];
-if($options->{'config'})
+if(defined($options->{'config'}))
 {
+	my $config = RepoTools::Config->new({ filename => $options->{'config'} })->parse();
+
+	if(defined($options->{'name'}))
+	{
+		croak "Configuration Error: No repo named '$options->{'name'}'"
+			unless(defined($config->{$options->{'name'}}));
+
+		my $repodata = $config->{$options->{'name'}};
+		push(@{$synclist}, { source => $repodata->{'source'}, dest => $repodata->{'dest'} });
+	}
+	else
+	{
+		while(my($repo, $repodata) = each(%{$config}))
+		{
+			next if(defined($repodata->{'disabled'}) && $repodata->{'disabled'} =~ /^1|yes|true/i);
+			push(@{$synclist}, { source => $repodata->{'source'}, dest => $repodata->{'dest'} });
+		}
+
+		croak "No repositories to sync"
+			unless(scalar(@{$synclist}) > 0);
+	}
 }
 else
 {
-	# initialise the base path and urls
-	my $uri_source = RepoTools::URI->new($options->{'source'});
-	my $uri_dest = RepoTools::URI->new($options->{'dest'});
-
-	if($uri_dest->{'type'} ne 'file')
-	{
-		print "Invalid Usage: Destination (-d) option must be a directory.\n";
-		exit(1);
-	}
-
-	push(@{$synclist}, { 'source' => $uri_source, 'dest' => $uri_dest });
+	push(@{$synclist}, { source => $options->{'source'}, dest => $options->{'dest'} });
 }
 
-RepoTools::Sync->new({ 'synclist' => $synclist, 'options' => $options })->sync();
+my $urisynclist = [];
+foreach my $sync (@{$synclist})
+{
+	my $uri_source = RepoTools::URI->new($sync->{'source'});
+	my $uri_dest = RepoTools::URI->new($sync->{'dest'});
+
+	croak "Error: Destination is not a local folder"
+		unless($uri_dest->{'type'} eq 'file');
+
+	push(@{$urisynclist}, { source => $uri_source, dest => $uri_dest });
+}
+
+RepoTools::Sync->new({ 'synclist' => $urisynclist, 'options' => $options })->sync();
