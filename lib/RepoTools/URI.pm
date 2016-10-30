@@ -23,10 +23,15 @@ sub new
 
 	my $self = bless({}, $name);
 
-	if($uri =~ /^https?:\/\//)
+	if($uri =~ m#^https?://#)
 	{
 		$self->{'path'} = $uri;
 		$self->{'type'} = 'url';
+	}
+	elsif($uri =~ m#^rsync://#)
+	{
+		$self->{'path'} = $uri;
+		$self->{'type'} = 'rsync';
 	}
 	else
 	{
