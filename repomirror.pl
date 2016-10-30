@@ -23,7 +23,7 @@ sub mirror_usage
 {
 	print "Configuration Mode\n";
 	print "Usage: $0 [-fhrs] -c <config> [-n name]\n";
-	print "     * -c: YAML configuration file to use.\n";
+	print "     * -c: Configuration file to use.\n";
 	print "       -n: Name of repo to sync.  If this option is not specified then\n";
 	print "           all repos within the configuration file are synced.\n";
 	print "\n";

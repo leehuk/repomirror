@@ -1,24 +1,24 @@
 # repomirror
 ## Overview
-Tool for mirroring RPM based repositories via HTTP(s) in a reasonably 
-intelligent manner.
+repomirror mirrors RPM repositories consumed by yum/dnf to local disk.  As well
+as running an ad-hoc sync, it can also be used as a simple platform for managing
+the mirroring of several repos in a structured manner.
 
-repomirror syncs an upstream repository to local disk via HTTP(s).  Its 
-intelligent in that unlike using wget in recursive mode (which is frankly just
-horrible), it will actually parse the metadata within the repository to 
-determine the contents and sync only whats required.
+repomirror supports mirroring from a folder and rsync sources, as well as http/https 
+repos in a much more intelligent manner than a tool like wget can.
 
-It will compare the XML data from the repository to determine what if anything
-it needs to download, then **optionally and not by default** cleans up orphaned 
-files from the local directory.
+When mirroring via http(s), repomirror will parse the XML metadata contained within 
+the repo to determine the contents of the repo and will then compare that to the
+local copy (using file sizes and checksums) to work out what needs to be synced.
 
-Its effectively a perl variant of the reposync tool that isnt dependent in
-any way on yum and can therefore sync repos that arent listed in yum.repos.d
-or run on other distributions like Debian.
+Its effectively rsync-via-http for rpm repos and a perl variant of the reposync 
+tool that isnt dependent in any way on yum and can therefore sync repos that arent 
+listed in yum.repos.d or run on other distributions like Debian.
 
-## Repositories available via rsync
+## Efficiency of rsync via http
 If the repository you wish to sync is available via rsync, you **really**
-should sync it that way, its a lot more efficient.
+should sync it that way.  An rsync negates the need to parse the XML metadata, which
+can be quite memory intensive and is also more efficient network wise.
 
 ## Requirements
 repomirror tries to focus on using only modules that are available by default
@@ -26,6 +26,8 @@ in CentOS-6 and CentOS-7:
 
 * perl
 * perl-Carp
+* perl-Capture-Tiny
+* perl-Config-Tiny
 * perl-Cwd
 * perl-Digest-SHA
 * perl-Error
@@ -34,18 +36,18 @@ in CentOS-6 and CentOS-7:
 * perl-Getopt-Std
 * perl-HTTP-Tiny
 * perl-XML-Parser
-* perl-YAML
 * rsync
 
 For CentOS this would be:
 ```
-yum install perl perl-Carp perl-Digest-SHA perl-Error perl-File-Path perl-HTTP-Tiny \
-  perl-PathTools perl-XML-Parser perl-YAML rsync
+yum install perl perl-Carp perl-Capture-Tiny perl-Config-Tiny perl-Digest-SHA perl-Error \
+  perl-File-Path perl-HTTP-Tiny perl-PathTools perl-XML-Parser rsync
 ```
 
 For Debian this would be:
 ```
-apt-get update && apt-get install perl perl-modules liberror-perl libxml-parser-perl libyaml-perl rsync
+apt-get update && apt-get install perl perl-modules libcapture-tiny-perl ibconfig-tiny-perl \
+  liberror-perl libxml-parser-perl rsync
 ```
 
 ## Installation
@@ -55,23 +57,43 @@ Preferably dont run it as root, particularly if you've told it to remove orphane
 
 ## Usage
 ```
-[19:31 repo@repo:~/repotools]$ ./repomirror.pl -h
-Usage: ./repomirror.pl [-fhrs] -d <directory> -u <url>
-     * -d: Directory to mirror to (required).
+[17:01 repo@repo:~/repotools]$ ./repomirror.pl -h
+Configuration Mode
+Usage: ./repomirror.pl [-fhrs] -c <config> [-n name]
+     * -c: Configuration file to use.
+       -n: Name of repo to sync.  If this option is not specified then
+           all repos within the configuration file are synced.
+
+Parameter Mode
+Usage: ./repomirror.pl [-fhrs] -s <source> -d <dest>
+     * -s: Source URI for the repository (required).
+           This should be the same path used in a yum.repos.d file,
+           but without any variables like $releasever etc.
+     * -d: Destination directory to mirror to (required).
            When -r (remove) is specified, *everything* within this folder
            thats not listed in the repo will be *deleted*.
+
+Common Options
        -f: Force repodata/rpm sync when up to date.
        -h: Show this help.
        -r: Remove local files that are no longer on the mirror.
            Its *strongly* recommended you run a download first without
            this option to ensure you have your pathing correct.
        -q: Be quiet other than for errors.
-     * -u: Sets the base URL for the repository (required).
-           This should be the same path used in a yum.repos.d file,
-           but without any variables like $releasever etc.
 ```
 
-## Technical Details
+### Configuration Mode
+In Configuration Mode, repomirror will parse the given configuration file and sync the repo
+passed in via the "-n" parameter.  If there is no named repo parameter, repomirror will sync
+all repos in the configuration file that are not disabled.
+
+A sample configuration file is contained within the docs directory.
+
+### Parameter Mode
+In Parameter Mode, repomirror will run an ad-hoc sync of the repo from the given source (-s)
+to the given dest directory (-d).
+
+## HTTP(S) Mirroring Technical Details
 repomirror basically works as follows:
 
 1. Download BASE_URL/repodata/repomd.xml and parse it.  
