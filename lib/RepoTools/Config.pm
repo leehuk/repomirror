@@ -8,7 +8,6 @@ package RepoTools::Config;
 use strict;
 use Carp;
 use Config::Tiny;
-use Data::Dumper;
 
 sub new
 {
