@@ -2,7 +2,7 @@
 # 	Module to use as a basic for creating RepoTools::URIObject instances
 #
 # Copyright (C) 2016 Lee H <lee@leeh.co.uk>
-# Released under the MIT License
+# Released under the BSD 2-Clause License
 package RepoTools::URI;
 
 use strict;

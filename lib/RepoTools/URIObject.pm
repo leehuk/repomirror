@@ -2,7 +2,7 @@
 # 	Module to interact with a specific URI object (e.g. a file or http link)
 #
 # Copyright (C) 2016 Lee H <lee@leeh.co.uk>
-# Released under the MIT License
+# Released under the BSD 2-Clause License
 package RepoTools::URIObject;
 
 use strict;

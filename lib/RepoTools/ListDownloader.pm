@@ -2,7 +2,7 @@
 # 	Module to download all required files from a given list
 #
 # Copyright (C) 2016 Lee H <lee@leeh.co.uk>
-# Released under the MIT License
+# Released under the BSD 2-Clause License
 package RepoTools::ListDownloader;
 
 use strict;
