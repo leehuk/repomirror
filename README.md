@@ -35,19 +35,20 @@ in CentOS-6 and CentOS-7:
 * perl-File-Path
 * perl-Getopt-Std
 * perl-HTTP-Tiny
+* perl-IO-Socket-SSL
 * perl-XML-Parser
 * rsync
 
 For CentOS this would be:
 ```
 yum install perl perl-Carp perl-Capture-Tiny perl-Config-Tiny perl-Digest-SHA perl-Error \
-  perl-File-Path perl-HTTP-Tiny perl-PathTools perl-XML-Parser rsync
+  perl-File-Path perl-HTTP-Tiny perl-IO-Socket-SSL perl-PathTools perl-XML-Parser rsync
 ```
 
 For Debian this would be:
 ```
 apt-get update && apt-get install perl perl-modules libcapture-tiny-perl ibconfig-tiny-perl \
-  liberror-perl libxml-parser-perl rsync
+  liberror-perl libio-socket-ssl-perl libxml-parser-perl rsync
 ```
 
 ## Installation
